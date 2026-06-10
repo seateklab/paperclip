@@ -5,9 +5,11 @@ export const label = "Codex (local)";
 
 export const SANDBOX_INSTALL_COMMAND = "npm install -g @openai/codex";
 
-export const DEFAULT_CODEX_LOCAL_MODEL = "gpt-5.3-codex";
+// export const DEFAULT_CODEX_LOCAL_MODEL = "gpt-5.3-codex";
+export const DEFAULT_CODEX_LOCAL_MODEL = "qwen3.5:397b-cloud";
 export const DEFAULT_CODEX_LOCAL_BYPASS_APPROVALS_AND_SANDBOX = true;
-export const CODEX_LOCAL_FAST_MODE_SUPPORTED_MODELS = ["gpt-5.4"] as const;
+// export const CODEX_LOCAL_FAST_MODE_SUPPORTED_MODELS = ["gpt-5.4"] as const;
+export const CODEX_LOCAL_FAST_MODE_SUPPORTED_MODELS = ["gpt-5.4", "qwen3.5:397b-cloud"] as const;
 
 function normalizeModelId(model: string | null | undefined): string {
   return typeof model === "string" ? model.trim() : "";
@@ -43,6 +45,9 @@ export const models = [
   { id: "gpt-5-nano", label: "gpt-5-nano" },
   { id: "o3-mini", label: "o3-mini" },
   { id: "codex-mini-latest", label: "Codex Mini" },
+  { id: "qwen3.5:397b-cloud", label: "Qwen3.5 397B Cloud" },
+  { id: "gemma4:31b-cloud", label: "Gemma4 31B Cloud" },
+  { id: "kimi-k2.6:cloud", label: "Kimi K2.6 Cloud" },
 ];
 
 export const modelProfiles: AdapterModelProfileDefinition[] = [
