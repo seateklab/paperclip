@@ -19,13 +19,6 @@ That's it. On first start the server:
 
 Data persists across restarts in `~/.paperclip/instances/default/db/`. To reset local dev data, delete that directory.
 
-On Windows, if embedded PostgreSQL fails because the default Paperclip home is not writable or a permission error is raised during startup, set `PAPERCLIP_HOME` to a writable path before retrying:
-
-```powershell
-$env:PAPERCLIP_HOME='D:\Workspace\paperclip\.paperclip'
-pnpm dev
-```
-
 If you need to apply pending migrations manually, run:
 
 ```sh

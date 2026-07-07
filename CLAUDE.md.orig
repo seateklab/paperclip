@@ -1,0 +1,55 @@
+# CLAUDE.md
+
+Claude-specific companion instructions for Paperclip.
+
+This file mirrors the repo policy in `AGENTS.md` and may add Claude-specific guidance, but it must never weaken or contradict `AGENTS.md`.
+
+## 1. Read Order
+
+Before changing anything, read:
+
+1. `AGENTS.md`
+2. `doc/GOAL.md`
+3. `doc/PRODUCT.md`
+4. `doc/SPEC-implementation.md`
+5. `doc/DEVELOPING.md`
+6. `doc/DATABASE.md`
+
+## 2. Priority
+
+- User instructions override everything else.
+- `AGENTS.md` overrides this file.
+- This file is only a Claude-specific companion.
+
+## 3. Edit Safety
+
+Never edit an existing file in place without a backup in the same directory.
+
+Required sequence:
+
+1. Read the target file.
+2. Create a backup beside it, such as `name.ext.orig` or `name.ext.bak`.
+3. Verify the backup exists.
+4. Edit the original file.
+5. Verify the result.
+
+Rules:
+
+- If the backup name already exists, use a timestamped suffix.
+- If backup creation fails, stop.
+- For new files, backup is not required.
+- For multiple existing files, back up each file before editing any of them.
+- Keep backups until the change is confirmed correct.
+
+## 4. Working Style
+
+- Prefer narrow, local changes.
+- Avoid unrelated refactors.
+- Preserve repo conventions unless the task explicitly asks to change them.
+- If a change touches behavior, verify the smallest relevant test path first.
+
+## 5. Done Criteria
+
+- The change matches the repo spec and existing policy.
+- The edit is backed up, applied, and verified.
+- Any user-visible docs or instructions affected by the change are updated.

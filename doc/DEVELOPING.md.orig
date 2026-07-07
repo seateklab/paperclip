@@ -192,13 +192,6 @@ The server will automatically use embedded PostgreSQL and persist data at:
 
 - `~/.paperclip/instances/default/db`
 
-On Windows, if the default home directory is not writable or embedded PostgreSQL fails with a permission error, point `PAPERCLIP_HOME` at a writable workspace directory before starting dev:
-
-```sh
-$env:PAPERCLIP_HOME='D:\Workspace\paperclip\.paperclip'
-pnpm dev
-```
-
 Override home or instance:
 
 ```sh

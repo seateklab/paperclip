@@ -5,8 +5,7 @@ import type { AdapterExecutionContext } from "@paperclipai/adapter-utils";
 import { resolvePaperclipInstanceRootForAdapter } from "@paperclipai/adapter-utils/server-utils";
 
 const TRUTHY_ENV_RE = /^(1|true|yes|on)$/i;
-const COPIED_SHARED_FILES = ["config.json", "config.toml", "instructions.md"] as const;
-const SYMLINKED_SHARED_FILES = ["auth.json"] as const;
+const COPIED_SHARED_FILES = ["auth.json", "config.json", "config.toml", "instructions.md"] as const;
 
 function nonEmpty(value: string | undefined): string | null {
   return typeof value === "string" && value.trim().length > 0 ? value.trim() : null;
@@ -45,49 +44,17 @@ async function ensureParentDir(target: string): Promise<void> {
   await fs.mkdir(path.dirname(target), { recursive: true });
 }
 
-async function isExpectedSymlink(target: string, source: string): Promise<boolean> {
-  const existing = await fs.lstat(target).catch(() => null);
-  if (!existing?.isSymbolicLink()) return false;
-
-  const linkedPath = await fs.readlink(target).catch(() => null);
-  if (!linkedPath) return false;
-
-  return path.resolve(path.dirname(target), linkedPath) === path.resolve(source);
-}
-
-async function createExpectedSymlink(target: string, source: string): Promise<void> {
-  try {
-    await fs.symlink(source, target);
-  } catch (error) {
-    const code = (error as NodeJS.ErrnoException).code;
-    if (code === "EEXIST" && await isExpectedSymlink(target, source)) return;
-    throw error;
-  }
-}
-
-async function ensureSymlink(target: string, source: string): Promise<void> {
-  const existing = await fs.lstat(target).catch(() => null);
-  if (!existing) {
-    await ensureParentDir(target);
-    await createExpectedSymlink(target, source);
-    return;
-  }
-
-  if (!existing.isSymbolicLink()) {
-    return;
-  }
-
-  if (await isExpectedSymlink(target, source)) return;
-
-  await fs.unlink(target);
-  await createExpectedSymlink(target, source);
-}
-
 async function ensureCopiedFile(target: string, source: string): Promise<void> {
   const existing = await fs.lstat(target).catch(() => null);
-  if (existing) return;
+  if (existing) {
+    await fs.rm(target, { force: true });
+  }
   await ensureParentDir(target);
   await fs.copyFile(source, target);
+  const sourceMode = await fs.stat(source).then((stat) => stat.mode).catch(() => null);
+  if (sourceMode !== null) {
+    await fs.chmod(target, sourceMode).catch(() => {});
+  }
 }
 
 /**
@@ -118,24 +85,14 @@ export async function prepareManagedCodexHome(
   await fs.mkdir(targetHome, { recursive: true });
 
   // If a previous run wrote an apikey-mode auth.json (regular file) and this
-  // run has no apiKey, remove it so the chatgpt-mode symlink can be restored.
-  // Without this cleanup, ensureSymlink bails on a non-symlink and Codex keeps
-  // authenticating with the stale key after it is removed from configuration.
+  // run has no apiKey, remove it so the shared-home copy can be restored.
+  // This also clears any stale symlink from older runs before we seed again.
   if (!apiKey && seedFromShared) {
     const authPath = path.join(targetHome, "auth.json");
-    const existing = await fs.lstat(authPath).catch(() => null);
-    if (existing && !existing.isSymbolicLink()) {
-      await fs.rm(authPath, { force: true });
-    }
+    await fs.rm(authPath, { force: true });
   }
 
   if (seedFromShared) {
-    for (const name of SYMLINKED_SHARED_FILES) {
-      const source = path.join(sourceHome, name);
-      if (!(await pathExists(source))) continue;
-      await ensureSymlink(path.join(targetHome, name), source);
-    }
-
     for (const name of COPIED_SHARED_FILES) {
       const source = path.join(sourceHome, name);
       if (!(await pathExists(source))) continue;
