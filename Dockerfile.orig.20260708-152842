@@ -40,7 +40,6 @@ COPY packages/plugins/plugin-llm-wiki/package.json packages/plugins/plugin-llm-w
 COPY packages/plugins/plugin-workspace-diff/package.json packages/plugins/plugin-workspace-diff/
 COPY patches/ patches/
 COPY scripts/link-plugin-dev-sdk.mjs scripts/
-COPY scripts/patch-embedded-postgres.mjs scripts/
 
 RUN pnpm install --frozen-lockfile
 
