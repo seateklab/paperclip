@@ -1,35 +1,4 @@
 #!/bin/sh
 set -eu
 
-# Capture runtime UID/GID from environment variables, defaulting to 1000.
-PUID=${USER_UID:-1000}
-PGID=${USER_GID:-1000}
-
-# Rootless runtimes cannot switch users. In that case, run directly and let the
-# orchestrator decide the container identity.
-if [ "$(id -u)" -ne 0 ]; then
-    exec "$@"
-fi
-
-# Adjust the node user's UID/GID if they differ from the runtime request and
-# fix volume ownership only when we can still switch away from root.
-changed=0
-
-if [ "$(id -u node)" -ne "$PUID" ]; then
-    echo "Updating node UID to $PUID"
-    usermod -o -u "$PUID" node
-    changed=1
-fi
-
-if [ "$(id -g node)" -ne "$PGID" ]; then
-    echo "Updating node GID to $PGID"
-    groupmod -o -g "$PGID" node
-    usermod -g "$PGID" node
-    changed=1
-fi
-
-if [ "$changed" = "1" ]; then
-    chown -R node:node /paperclip
-fi
-
-exec gosu node "$@"
+exec "$@"
