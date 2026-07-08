@@ -43,6 +43,7 @@ COPY scripts/link-plugin-dev-sdk.mjs scripts/
 COPY scripts/patch-embedded-postgres.mjs scripts/
 
 RUN pnpm install --frozen-lockfile
+RUN PAPERCLIP_EMBEDDED_POSTGRES_PACKAGE_DIR=/app/packages/db node ./scripts/patch-embedded-postgres.mjs
 
 FROM base AS build
 WORKDIR /app

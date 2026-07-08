@@ -1,18 +1,28 @@
 import { readFile, writeFile } from "node:fs/promises";
 import { createRequire } from "node:module";
 import path from "node:path";
+import process from "node:process";
 
 const require = createRequire(import.meta.url);
 
 async function main() {
-  let packageJsonPath;
+  const workspaceDir = process.env.PAPERCLIP_EMBEDDED_POSTGRES_PACKAGE_DIR
+    ? path.resolve(process.env.PAPERCLIP_EMBEDDED_POSTGRES_PACKAGE_DIR)
+    : path.resolve(process.cwd(), "packages/db");
+
+  let entryPath;
   try {
-    packageJsonPath = require.resolve("embedded-postgres/package.json");
+    entryPath = require.resolve("embedded-postgres", { paths: [workspaceDir] });
   } catch (error) {
-    throw new Error("embedded-postgres is not installed; cannot apply compatibility patch", { cause: error });
+    throw new Error(
+      `embedded-postgres is not installed in ${workspaceDir}; cannot apply compatibility patch`,
+      { cause: error },
+    );
   }
 
-  const distIndexPath = path.join(path.dirname(packageJsonPath), "dist", "index.js");
+  const distIndexPath = entryPath.endsWith(`${path.sep}dist${path.sep}index.js`)
+    ? entryPath
+    : path.join(path.dirname(entryPath), "dist", "index.js");
   const original = await readFile(distIndexPath, "utf8");
 
   const replacements = [
