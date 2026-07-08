@@ -407,35 +407,6 @@ describe("runChildProcess", () => {
     expect(result.stdout).toBe("done");
   });
 
-  it("preserves multibyte stdout across chunk boundaries", async () => {
-    const expected = String.fromCodePoint(0x1f60a);
-    const observed: string[] = [];
-    const result = await runChildProcess(
-      randomUUID(),
-      process.execPath,
-      [
-        "-e",
-        [
-          "process.stdout.write(Buffer.from([0xF0, 0x9F]));",
-          "process.stdout.write(Buffer.from([0x98, 0x8A]));",
-        ].join(" "),
-      ],
-      {
-        cwd: process.cwd(),
-        env: {},
-        timeoutSec: 5,
-        graceSec: 1,
-        onLog: async (_stream, chunk) => {
-          observed.push(chunk);
-        },
-      },
-    );
-
-    expect(result.exitCode).toBe(0);
-    expect(result.stdout).toBe(expected);
-    expect(observed.join("")).toBe(expected);
-  });
-
   it("waits for onSpawn before sending stdin to the child", async () => {
     const spawnDelayMs = 150;
     const startedAt = Date.now();
@@ -643,7 +614,6 @@ describe("renderPaperclipWakePrompt", () => {
     expect(DEFAULT_PAPERCLIP_AGENT_PROMPT_TEMPLATE).toContain("kind suggest_tasks, ask_user_questions, or request_confirmation");
     expect(DEFAULT_PAPERCLIP_AGENT_PROMPT_TEMPLATE).toContain("confirmation:{issueId}:plan:{revisionId}");
     expect(DEFAULT_PAPERCLIP_AGENT_PROMPT_TEMPLATE).toContain("Wait for acceptance before creating implementation subtasks");
-    expect(DEFAULT_PAPERCLIP_AGENT_PROMPT_TEMPLATE).toContain("Always follow the language of the issue title, description, and latest user-facing comments");
     expect(DEFAULT_PAPERCLIP_AGENT_PROMPT_TEMPLATE).toContain(
       "Respect budget, pause/cancel, approval gates, and company boundaries",
     );

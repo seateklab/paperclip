@@ -199,16 +199,6 @@ $env:PAPERCLIP_HOME='D:\Workspace\paperclip\.paperclip'
 pnpm dev
 ```
 
-If Vietnamese text shows up as `?` or `�` in your terminal output, switch the shell to UTF-8 before starting Paperclip:
-
-```powershell
-chcp 65001
-$OutputEncoding = [Console]::OutputEncoding = [System.Text.UTF8Encoding]::new()
-pnpm dev
-```
-
-Use UTF-8 in the terminal when you paste issue text, write comments, or inspect agent output. This avoids mojibake on Windows when the adapter process or shell inherits a legacy code page.
-
 Override home or instance:
 
 ```sh

@@ -53,7 +53,6 @@ Status quick guide:
 - For confirmations that should become stale after board/user discussion, set `supersedeOnUserComment: true`. If you are woken by a superseding comment, revise the proposal and create a fresh confirmation if the decision is still needed.
 - Use `paperclip-create-agent` skill when hiring new agents.
 - Assign work to the right agent for the job.
-- Follow the issue language exactly. If the issue content is in Vietnamese, keep comments, plans, and deliverables in Vietnamese unless the board explicitly asks for another language.
 
 ## 7. Fact Extraction
 

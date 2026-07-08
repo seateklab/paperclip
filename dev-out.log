@@ -1,0 +1,5 @@
+
+> paperclip@ dev D:\Workspace\paperclip
+> pnpm --filter @paperclipai/server exec tsx ../scripts/dev-runner.ts watch
+
+[paperclip] dev mode: local_trusted (default)

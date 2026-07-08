@@ -29,7 +29,6 @@
             "pages": [
               "start/what-is-paperclip",
               "start/quickstart",
-              "start/chay-paperclip-o-dev-mode",
               "start/trien-khai-paperclip-len-vps",
               "start/core-concepts",
               "start/architecture"

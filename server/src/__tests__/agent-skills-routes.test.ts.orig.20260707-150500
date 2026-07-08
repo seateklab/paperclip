@@ -660,13 +660,6 @@ describe.sequential("agent skill routes", () => {
       }),
       { entryFile: "AGENTS.md", replaceExisting: false },
     );
-    const bundle = mockAgentInstructionsService.materializeManagedBundle.mock.calls[0]?.[1] as
-      | Record<string, string>
-      | undefined;
-    expect(bundle?.["AGENTS.md"]).toContain(
-      "Always respond in the same language as the issue title, description, and latest user-facing comments",
-    );
-    expect(bundle?.["HEARTBEAT.md"]).toContain("Follow the issue language exactly");
   });
 
   it("materializes the bundled default instruction set for non-CEO agents with no prompt template", async () => {
