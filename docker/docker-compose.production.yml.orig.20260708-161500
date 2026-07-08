@@ -33,7 +33,7 @@ services:
     tmpfs:
       - /tmp:mode=1777,size=512m
     ports:
-      - "${PAPERCLIP_BIND_IP:-0.0.0.0}:${PAPERCLIP_PORT:-3100}:3100"
+      - "${PAPERCLIP_BIND_IP:-127.0.0.1}:${PAPERCLIP_PORT:-3100}:3100"
     env_file:
       - .env.production
     environment:
