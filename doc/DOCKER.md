@@ -283,5 +283,6 @@ Notes:
 
 ## General Notes
 
-- The `docker-entrypoint.sh` adjusts the container `node` user UID/GID at startup to match the values passed via `USER_UID`/`USER_GID`, avoiding permission issues on bind-mounted volumes.
+- The `docker-entrypoint.sh` adjusts the container `node` user UID/GID at startup when the container is running as root, avoiding permission issues on bind-mounted volumes.
+- On cloud or rootless runtimes where the container cannot switch users, the entrypoint now skips `gosu` and executes the main process directly. In that mode, make sure the mounted Paperclip data directory is writable by the container identity chosen by your orchestrator.
 - Paperclip data persists via Docker volumes/bind mounts (compose) or at `~/.local/share/paperclip` (quadlet).
