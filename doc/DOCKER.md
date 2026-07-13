@@ -88,6 +88,29 @@ BETTER_AUTH_SECRET=$(openssl rand -hex 32) \
 
 PostgreSQL data persists in a named Docker volume (`pgdata`). Paperclip data persists in `paperclip-data`.
 
+### Production compose
+
+For a hardened production-style single-node deployment, use the production compose and env example:
+
+```sh
+cp docker/.env.production.example docker/.env.production
+docker compose -f docker/docker-compose.production.yml --env-file docker/.env.production up -d --build
+```
+
+This stack:
+
+- binds the app to `127.0.0.1` by default so you can place a reverse proxy in front of it
+- runs the app with `read_only: true`, dropped Linux capabilities, and `no-new-privileges`
+- persists Paperclip data in a named volume
+- persists PostgreSQL data in a separate named volume
+- enables migration auto-apply and the heartbeat scheduler for production boot
+
+Change `PAPERCLIP_BIND_IP=0.0.0.0` only if you intentionally want the container port exposed beyond loopback.
+
+If you are deploying to cloud or multi-node infrastructure, keep the runtime settings from
+`docker/.env.production.example` but move `DATABASE_URL` and `DATABASE_MIGRATION_URL` to a managed PostgreSQL service.
+See [`docs/deploy/database.md`](../docs/deploy/database.md) and [`docs/deploy/production.md`](../docs/deploy/production.md) for the deployment contract.
+
 ### Untrusted PR review
 
 Isolated container for reviewing untrusted pull requests with Codex or Claude, without exposing your host machine. See `doc/UNTRUSTED-PR-REVIEW.md` for the full workflow.
@@ -260,5 +283,6 @@ Notes:
 
 ## General Notes
 
-- The `docker-entrypoint.sh` adjusts the container `node` user UID/GID at startup to match the values passed via `USER_UID`/`USER_GID`, avoiding permission issues on bind-mounted volumes.
+- The production image now runs as the `node` user directly instead of switching identities at runtime with `gosu`.
+- If you use bind mounts, make sure the mounted Paperclip data directory is writable by the UID/GID baked into the image through `USER_UID` and `USER_GID` build args.
 - Paperclip data persists via Docker volumes/bind mounts (compose) or at `~/.local/share/paperclip` (quadlet).

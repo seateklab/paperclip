@@ -192,6 +192,23 @@ The server will automatically use embedded PostgreSQL and persist data at:
 
 - `~/.paperclip/instances/default/db`
 
+On Windows, if the default home directory is not writable or embedded PostgreSQL fails with a permission error, point `PAPERCLIP_HOME` at a writable workspace directory before starting dev:
+
+```sh
+$env:PAPERCLIP_HOME='D:\Workspace\paperclip\.paperclip'
+pnpm dev
+```
+
+If Vietnamese text shows up as `?` or `�` in your terminal output, switch the shell to UTF-8 before starting Paperclip:
+
+```powershell
+chcp 65001
+$OutputEncoding = [Console]::OutputEncoding = [System.Text.UTF8Encoding]::new()
+pnpm dev
+```
+
+Use UTF-8 in the terminal when you paste issue text, write comments, or inspect agent output. This avoids mojibake on Windows when the adapter process or shell inherits a legacy code page.
+
 Override home or instance:
 
 ```sh

@@ -6,6 +6,7 @@ import os from "node:os";
 import path from "node:path";
 import type { CommandManagedRuntimeRunner } from "./command-managed-runtime.js";
 import type { RunProcessResult } from "./server-utils.js";
+import { toUtf8TextChunk } from "./text-chunk.js";
 import type { DirectorySnapshot } from "./workspace-restore-merge.js";
 import { mergeDirectoryWithBaseline } from "./workspace-restore-merge.js";
 
@@ -220,6 +221,8 @@ async function spawnText(
     const child = spawn(file, args, {
       stdio: [options.stdin != null ? "pipe" : "ignore", "pipe", "pipe"],
     });
+    child.stdout?.setEncoding("utf8");
+    child.stderr?.setEncoding("utf8");
 
     const maxBuffer = options.maxBuffer ?? 1024 * 128;
     let stdout = "";
@@ -240,7 +243,7 @@ async function spawnText(
       streamName: "stdout" | "stderr",
       chunk: unknown,
     ) => {
-      const text = String(chunk);
+      const text = toUtf8TextChunk(chunk);
       if (streamName === "stdout") {
         stdout += text;
       } else {
@@ -521,7 +524,7 @@ async function streamLocalFileToSsh(input: {
     };
 
     ssh.stderr?.on("data", (chunk) => {
-      sshStderr += String(chunk);
+      sshStderr += toUtf8TextChunk(chunk);
     });
     source.on("error", fail);
     ssh.on("error", fail);
@@ -556,6 +559,7 @@ async function streamSshToLocalFile(input: {
     const ssh = spawn("ssh", sshArgs, {
       stdio: ["ignore", "pipe", "pipe"],
     });
+    ssh.stderr?.setEncoding("utf8");
     const sink = createWriteStream(input.localFile, { mode: 0o600 });
 
     let sshStderr = "";
@@ -571,7 +575,7 @@ async function streamSshToLocalFile(input: {
 
     ssh.stdout?.pipe(sink);
     ssh.stderr?.on("data", (chunk) => {
-      sshStderr += String(chunk);
+      sshStderr += toUtf8TextChunk(chunk);
     });
     ssh.on("error", fail);
     sink.on("error", fail);
@@ -1093,10 +1097,10 @@ export async function syncDirectoryToSsh(input: {
 
     tar.stdout?.pipe(ssh.stdin ?? null);
     tar.stderr?.on("data", (chunk) => {
-      tarStderr += String(chunk);
+      tarStderr += toUtf8TextChunk(chunk);
     });
     ssh.stderr?.on("data", (chunk) => {
-      sshStderr += String(chunk);
+      sshStderr += toUtf8TextChunk(chunk);
     });
 
     tar.on("error", fail);
@@ -1140,10 +1144,12 @@ export async function syncDirectoryFromSsh(input: {
       const ssh = spawn("ssh", sshArgs, {
         stdio: ["ignore", "pipe", "pipe"],
       });
+      ssh.stderr?.setEncoding("utf8");
       const tar = spawn("tar", ["-xf", "-", "-C", stagingDir], {
         stdio: ["pipe", "ignore", "pipe"],
         env: tarSpawnEnv(),
       });
+      tar.stderr?.setEncoding("utf8");
 
       let sshStderr = "";
       let tarStderr = "";
@@ -1177,10 +1183,10 @@ export async function syncDirectoryFromSsh(input: {
 
       ssh.stdout?.pipe(tar.stdin ?? null);
       ssh.stderr?.on("data", (chunk) => {
-        sshStderr += String(chunk);
+        sshStderr += toUtf8TextChunk(chunk);
       });
       tar.stderr?.on("data", (chunk) => {
-        tarStderr += String(chunk);
+        tarStderr += toUtf8TextChunk(chunk);
       });
 
       ssh.on("error", fail);

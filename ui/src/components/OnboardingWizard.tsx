@@ -63,11 +63,13 @@ import {
 type Step = 1 | 2 | 3 | 4;
 type AdapterType = string;
 
-const DEFAULT_TASK_DESCRIPTION = `You are the CEO. You set the direction for the company.
+const DEFAULT_TASK_TITLE = "Xây dựng lộ trình ebook đầu tiên cho công ty";
+const DEFAULT_TASK_DESCRIPTION = `Bạn là CEO. Bạn đặt hướng đi cho công ty nội dung số này.
 
-- hire a founding engineer
-- write a hiring plan
-- break the roadmap into concrete tasks and start delegating work`;
+- xác định 3 hướng chủ đề ebook khả thi cho giai đoạn đầu
+- chọn 1 chủ đề ưu tiên và giải thích lý do
+- chia workflow thành các pha research, outline, writing, review, package, publish
+- phân công việc cho các agent chuyên trách và ưu tiên đầu ra bằng tiếng Việt`;
 
 export function OnboardingWizard() {
   const { onboardingOpen, onboardingOptions, closeOnboarding } = useDialog();
@@ -125,9 +127,7 @@ export function OnboardingWizard() {
   const [showMoreAdapters, setShowMoreAdapters] = useState(false);
 
   // Step 3
-  const [taskTitle, setTaskTitle] = useState(
-    "Hire your first engineer and create a hiring plan"
-  );
+  const [taskTitle, setTaskTitle] = useState(DEFAULT_TASK_TITLE);
   const [taskDescription, setTaskDescription] = useState(
     DEFAULT_TASK_DESCRIPTION
   );
@@ -301,7 +301,7 @@ export function OnboardingWizard() {
     setAdapterEnvLoading(false);
     setForceUnsetAnthropicApiKey(false);
     setUnsetAnthropicLoading(false);
-    setTaskTitle("Hire your first engineer and create a hiring plan");
+    setTaskTitle(DEFAULT_TASK_TITLE);
     setTaskDescription(DEFAULT_TASK_DESCRIPTION);
     setCreatedCompanyId(null);
     setCreatedCompanyPrefix(null);

@@ -139,6 +139,7 @@ export async function createApp(
     databaseBackupService?: InstanceDatabaseBackupService;
     deploymentMode: DeploymentMode;
     deploymentExposure: DeploymentExposure;
+    bootstrapAdminEmail?: string;
     allowedHostnames: string[];
     bindHost: string;
     authReady: boolean;
@@ -313,6 +314,7 @@ export async function createApp(
     accessRoutes(db, {
       deploymentMode: opts.deploymentMode,
       deploymentExposure: opts.deploymentExposure,
+      bootstrapAdminEmail: opts.bootstrapAdminEmail,
       bindHost: opts.bindHost,
       allowedHostnames: opts.allowedHostnames,
     }),

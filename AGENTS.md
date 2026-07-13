@@ -19,6 +19,7 @@ Before making changes, read in this order:
 
 `doc/SPEC.md` is long-horizon product context.
 `doc/SPEC-implementation.md` is the concrete V1 build contract.
+`CLAUDE.md` is the Claude-specific companion for this repo. It must stay aligned with this file and may not weaken any rule here.
 
 ## 3. Repo Map
 
@@ -31,9 +32,42 @@ Before making changes, read in this order:
 - `packages/plugins/`: plugin system packages
 - `doc/`: operational and product docs
 
+## 3.1 Current Architecture Snapshot (Shipped Source Reality)
+
+Paperclip in this repo is already more than the minimal CRUD baseline. The source currently implements a company-scoped control plane with these major runtime layers:
+
+- `server/`: API, auth, orchestration, scheduler, plugin host, storage, secrets, portability/import-export, and runtime/workspace coordination
+- `ui/`: board UI for dashboard, companies, issues, agents, org views, approvals, routines, costs, settings, plugins, and deployment/admin flows
+- `cli/`: onboarding, doctor, configure, run, worktree, backup, secrets, issue/project/dashboard operations, and authenticated bootstrap flows
+- `packages/adapters/*`: built-in local/session adapters, process/http adapters, OpenClaw gateway, and external adapter loading support
+- `packages/plugins/*`: plugin SDK, plugin runtime pieces, and sandbox/provider integrations
+- `packages/skills-catalog/`: shipped skill catalog manifest consumed by the app/CLI
+
+## 3.2 Features Present In Source
+
+When updating docs, planning work, or reviewing architecture, assume these capabilities already exist unless the task is explicitly about removing or replacing them:
+
+- Multi-company control plane with hard company scoping
+- Two deployment/auth modes: `local_trusted` and `authenticated` (`private` or `public` exposure)
+- Board users, memberships, invites/join flows, instance roles, and Better Auth session-based human auth
+- Agents with org-chart reporting, budgets, permissions, adapter config, runtime config, and API keys
+- Built-in adapter families: process, HTTP, local CLI/session adapters (Claude, Codex, Gemini, OpenCode, Pi, Cursor family, etc.), OpenClaw gateway, plus external adapter plugins
+- Issues/tasks with parent-child structure, comments, documents/revisions, attachments, work products, labels, blockers, approvals, inbox/read state, and activity logging
+- Atomic checkout / execution lock semantics and explicit wakeup/heartbeat orchestration
+- Cost tracking and budget enforcement with hard-stop auto-pause behavior
+- Routines with schedule/API/webhook triggers and routine revisions/runs
+- Execution workspaces, project workspaces, runtime services, and worktree-aware execution policies
+- Secrets management with encrypted local storage, provider vault model, secret references, and strict mode
+- Local disk and S3-compatible attachment/object storage
+- Plugin runtime with plugin config/state/jobs/logs/webhooks and plugin DB namespaces/migrations
+- Company import/export portability package support
+- CLI and API support for backups, onboarding, health checks, and operational configuration
+
+Important: `doc/SPEC-implementation.md` is still the V1 contract, but the codebase already contains several post-baseline systems that are real and should not be documented as "future" without checking the source first.
+
 ## 4. Dev Setup (Auto DB)
 
-Use embedded PGlite in dev by leaving `DATABASE_URL` unset.
+Use embedded PostgreSQL in dev by leaving `DATABASE_URL` unset.
 
 ```sh
 pnpm install
@@ -55,9 +89,52 @@ curl http://localhost:3100/api/companies
 Reset local dev DB:
 
 ```sh
-rm -rf data/pglite
+rm -rf ~/.paperclip/instances/default/db
 pnpm dev
 ```
+
+## 4.1 Production Deployment Baseline
+
+Use the source-backed deployment model below when turning this repo into a production system:
+
+1. Pick the correct runtime mode.
+   - `authenticated/private`: private LAN/VPN/Tailscale deployments
+   - `authenticated/public`: internet-facing deployments
+   - `local_trusted` is for single-operator local use, not public production
+
+2. Use external PostgreSQL for real production.
+   - `authenticated/public` must not rely on embedded PostgreSQL
+   - set `DATABASE_URL`
+   - if runtime uses a pooled URL, also set `DATABASE_MIGRATION_URL` to a direct Postgres connection for startup migration/schema checks
+
+3. Set the canonical public/auth URL and auth secret.
+   - set `PAPERCLIP_PUBLIC_URL` for authenticated deployments
+   - set `BETTER_AUTH_SECRET`
+   - if you are behind a reverse proxy/load balancer, prefer loopback binding behind the proxy for public deployments
+
+4. Choose storage based on topology.
+   - `local_disk` is acceptable for single-machine deployments with persistent disk
+   - for cloud or multi-node deployments, use `s3` storage (`PAPERCLIP_STORAGE_PROVIDER=s3` and related bucket/region settings)
+
+5. Treat secrets and backups as part of the deployment, not an afterthought.
+   - authenticated deployments should run with secrets strict mode enabled
+   - if using `local_encrypted`, back up both the database and the secrets master key
+   - if using local disk storage, back up attachment storage as well
+   - enable and monitor DB backups
+
+6. Persist the Paperclip instance root.
+   - persist `PAPERCLIP_HOME` (or the equivalent mounted instance path) for config, storage, logs, workspaces, backups, and local secrets material
+
+7. Prefer the documented deployment paths already present in the repo.
+   - Docker / Compose: `Dockerfile`, `docker/docker-compose.yml`, `doc/DOCKER.md`
+   - Podman Quadlet: `docker/quadlet/*`
+   - AWS ECS Fargate reference: `docs/deploy/aws-ecs.md`
+   - deployment references: `docs/deploy/overview.md`, `docs/deploy/environment-variables.md`, `docs/deploy/database.md`, `docs/deploy/storage.md`, `docs/deploy/secrets.md`
+
+8. Validate the deployment with real health and startup checks.
+   - `GET /api/health`
+   - verify plugin loader startup, DB connectivity, auth flow, and attachment storage
+   - verify first-admin/bootstrap flow for authenticated installs before handing the instance to users
 
 ## 5. Core Engineering Rules
 
@@ -169,7 +246,13 @@ When creating a pull request (via `gh pr create` or any other method), you **mus
 - **Model Used** — the AI model that produced or assisted with the change (provider, exact model ID, context window, capabilities). Write "None — human-authored" if no AI was used.
 - **Checklist** — all items checked
 
-## 11. Definition of Done
+## 11. Vibecoding File Safety
+
+- Back up any existing file in the same directory before editing it.
+- If backup creation fails, stop and do not edit.
+- Use `.orig` or a timestamped `.orig.YYYYMMDD-HHMMSS` suffix; never overwrite an existing backup.
+
+## 12. Definition of Done
 
 A change is done when all are true:
 
@@ -179,7 +262,7 @@ A change is done when all are true:
 4. Docs updated when behavior or commands change
 5. PR description follows the [PR template](.github/PULL_REQUEST_TEMPLATE.md) with all sections filled in (including Model Used)
 
-## 11. Fork-Specific: HenkDz/paperclip
+## 13. Fork-Specific: HenkDz/paperclip
 
 This is a fork of `paperclipai/paperclip` with QoL patches and an **external-only** Hermes adapter story on branch `feat/externalize-hermes-adapter` ([tree](https://github.com/HenkDz/paperclip/tree/feat/externalize-hermes-adapter)).
 

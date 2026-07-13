@@ -1927,6 +1927,13 @@ function toUserProfile(
 
 async function resolveActorEmail(db: Db, req: Request): Promise<string | null> {
   if (isLocalImplicit(req)) return "local@paperclip.local";
+  if (
+    req.actor.type === "board" &&
+    typeof req.actor.userEmail === "string" &&
+    req.actor.userEmail.trim().length > 0
+  ) {
+    return req.actor.userEmail;
+  }
   const userId = req.actor.userId;
   if (!userId) return null;
   const user = await db
@@ -1935,6 +1942,19 @@ async function resolveActorEmail(db: Db, req: Request): Promise<string | null> {
     .where(eq(authUsers.id, userId))
     .then((rows) => rows[0] ?? null);
   return user?.email ?? null;
+}
+
+async function assertBootstrapAdminEmailAllowed(
+  db: Db,
+  req: Request,
+  configuredBootstrapAdminEmail: string | undefined,
+) {
+  if (!configuredBootstrapAdminEmail) return;
+  const actorEmail = (await resolveActorEmail(db, req))?.trim().toLowerCase() ?? null;
+  if (actorEmail === configuredBootstrapAdminEmail) return;
+  throw forbidden(
+    `Configured bootstrap admin email mismatch. This instance only allows ${configuredBootstrapAdminEmail} to claim the first bootstrap admin role.`,
+  );
 }
 
 async function resolveAcceptedInviteJoinRequest(
@@ -2418,6 +2438,7 @@ export function accessRoutes(
     deploymentExposure: DeploymentExposure;
     bindHost: string;
     allowedHostnames: string[];
+    bootstrapAdminEmail?: string;
     inviteResolutionNetwork?: Partial<InviteResolutionNetwork>;
   }
 ) {
@@ -2498,6 +2519,7 @@ export function accessRoutes(
     ) {
       throw unauthorized("Sign in from a browser session before claiming first admin");
     }
+    await assertBootstrapAdminEmailAllowed(db, req, opts.bootstrapAdminEmail);
 
     const claimed = await claimFirstInstanceAdmin(db, {
       userId: req.actor.userId,
@@ -3420,6 +3442,7 @@ export function accessRoutes(
             "Authenticated user required for bootstrap acceptance"
           );
         }
+        await assertBootstrapAdminEmailAllowed(db, req, opts.bootstrapAdminEmail);
         const userId = req.actor.userId ?? "local-board";
         const claimed = await claimFirstInstanceAdmin(db, {
           userId,

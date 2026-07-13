@@ -3,6 +3,7 @@ import { spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { promises as fs } from "node:fs";
 import path from "node:path";
+import { toUtf8TextChunk } from "@paperclipai/adapter-utils/text-chunk";
 import {
   PLUGIN_STATE_SCOPE_KINDS,
   definePlugin,
@@ -181,15 +182,17 @@ async function runCuratedCommand(
     cwd,
     stdio: ["ignore", "pipe", "pipe"],
   });
+  child.stdout?.setEncoding("utf8");
+  child.stderr?.setEncoding("utf8");
 
   let stdout = "";
   let stderr = "";
 
   child.stdout.on("data", (chunk) => {
-    stdout += String(chunk);
+    stdout += toUtf8TextChunk(chunk);
   });
   child.stderr.on("data", (chunk) => {
-    stderr += String(chunk);
+    stderr += toUtf8TextChunk(chunk);
   });
 
   const code = await new Promise<number | null>((resolve, reject) => {

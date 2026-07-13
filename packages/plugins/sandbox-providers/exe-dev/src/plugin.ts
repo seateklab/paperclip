@@ -4,6 +4,7 @@ import { chmod, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { spawn } from "node:child_process";
 import { definePlugin } from "@paperclipai/plugin-sdk";
+import { toUtf8TextChunk } from "@paperclipai/adapter-utils/text-chunk";
 import type {
   PluginEnvironmentAcquireLeaseParams,
   PluginEnvironmentDestroyLeaseParams,
@@ -592,6 +593,8 @@ async function runSshCommand(
       const child = spawn("ssh", buildSshArgs(config, vm, remoteCommand, identity.sshIdentityFile), {
         stdio: [options.stdin != null ? "pipe" : "ignore", "pipe", "pipe"],
       });
+      child.stdout?.setEncoding("utf8");
+      child.stderr?.setEncoding("utf8");
       let stdout = "";
       let stderr = "";
       let timedOut = false;
@@ -607,10 +610,10 @@ async function runSshCommand(
         : null;
 
       child.stdout?.on("data", (chunk) => {
-        stdout += String(chunk);
+        stdout += toUtf8TextChunk(chunk);
       });
       child.stderr?.on("data", (chunk) => {
-        stderr += String(chunk);
+        stderr += toUtf8TextChunk(chunk);
       });
       child.on("error", (error) => {
         if (timer) clearTimeout(timer);

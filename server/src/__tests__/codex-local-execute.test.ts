@@ -165,8 +165,9 @@ describe("codex execute", () => {
 
       const managedAuth = path.join(managedCodexHome, "auth.json");
       const managedConfig = path.join(managedCodexHome, "config.toml");
-      expect((await fs.lstat(managedAuth)).isSymbolicLink()).toBe(true);
-      expect(await fs.realpath(managedAuth)).toBe(await fs.realpath(path.join(sharedCodexHome, "auth.json")));
+      expect((await fs.lstat(managedAuth)).isSymbolicLink()).toBe(false);
+      expect((await fs.lstat(managedAuth)).isFile()).toBe(true);
+      expect(await fs.readFile(managedAuth, "utf8")).toBe('{"token":"shared"}\n');
       expect((await fs.lstat(managedConfig)).isFile()).toBe(true);
       expect(await fs.readFile(managedConfig, "utf8")).toBe('model = "codex-mini-latest"\n');
       await expect(fs.lstat(path.join(sharedCodexHome, "companies", "company-1"))).rejects.toThrow();
@@ -1126,8 +1127,9 @@ describe("codex execute", () => {
       const isolatedAuth = path.join(isolatedCodexHome, "auth.json");
       const isolatedConfig = path.join(isolatedCodexHome, "config.toml");
 
-      expect((await fs.lstat(isolatedAuth)).isSymbolicLink()).toBe(true);
-      expect(await fs.realpath(isolatedAuth)).toBe(await fs.realpath(path.join(sharedCodexHome, "auth.json")));
+      expect((await fs.lstat(isolatedAuth)).isSymbolicLink()).toBe(false);
+      expect((await fs.lstat(isolatedAuth)).isFile()).toBe(true);
+      expect(await fs.readFile(isolatedAuth, "utf8")).toBe('{"token":"shared"}\n');
       expect((await fs.lstat(isolatedConfig)).isFile()).toBe(true);
       expect(await fs.readFile(isolatedConfig, "utf8")).toBe('model = "codex-mini-latest"\n');
       expect((await fs.lstat(homeSkill)).isSymbolicLink()).toBe(true);

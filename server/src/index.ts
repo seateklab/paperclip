@@ -643,6 +643,7 @@ export async function startServer(): Promise<StartedServer> {
     },
     deploymentMode: config.deploymentMode,
     deploymentExposure: config.deploymentExposure,
+    bootstrapAdminEmail: config.bootstrapAdminEmail,
     allowedHostnames: config.allowedHostnames,
     bindHost: config.host,
     authReady,

@@ -6,6 +6,7 @@ import { createHash, randomUUID } from "node:crypto";
 import path from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 import type { AdapterRuntimeServiceReport } from "@paperclipai/adapter-utils";
+import { toUtf8TextChunk } from "@paperclipai/adapter-utils/text-chunk";
 import type { Db } from "@paperclipai/db";
 import { executionWorkspaces, projectWorkspaces, workspaceRuntimeServices } from "@paperclipai/db";
 import {
@@ -489,13 +490,15 @@ async function executeProcess(input: {
       stdio: ["ignore", "pipe", "pipe"],
       env: input.env ?? process.env,
     });
+    child.stdout?.setEncoding("utf8");
+    child.stderr?.setEncoding("utf8");
     const stdout = createProcessOutputCapture(input.maxStdoutBytes ?? DEFAULT_EXECUTE_PROCESS_OUTPUT_BYTES);
     const stderr = createProcessOutputCapture(input.maxStderrBytes ?? DEFAULT_EXECUTE_PROCESS_OUTPUT_BYTES);
     child.stdout?.on("data", (chunk) => {
-      stdout.append(String(chunk));
+      stdout.append(toUtf8TextChunk(chunk));
     });
     child.stderr?.on("data", (chunk) => {
-      stderr.append(String(chunk));
+      stderr.append(toUtf8TextChunk(chunk));
     });
     child.on("error", reject);
     child.on("close", (code) => resolve({ stdout, stderr, code }));
@@ -2244,6 +2247,8 @@ async function startLocalRuntimeService(input: {
     detached: process.platform !== "win32",
     stdio: ["ignore", "pipe", "pipe"],
   });
+  child.stdout?.setEncoding("utf8");
+  child.stderr?.setEncoding("utf8");
   const spawnErrorPromise = new Promise<never>((_, reject) => {
     child.once("error", (err) => {
       reject(err);
@@ -2252,12 +2257,12 @@ async function startLocalRuntimeService(input: {
   let stderrExcerpt = "";
   let stdoutExcerpt = "";
   child.stdout?.on("data", async (chunk) => {
-    const text = String(chunk);
+    const text = toUtf8TextChunk(chunk);
     stdoutExcerpt = (stdoutExcerpt + text).slice(-4096);
     if (input.onLog) await input.onLog("stdout", `[service:${serviceName}] ${text}`);
   });
   child.stderr?.on("data", async (chunk) => {
-    const text = String(chunk);
+    const text = toUtf8TextChunk(chunk);
     stderrExcerpt = (stderrExcerpt + text).slice(-4096);
     if (input.onLog) await input.onLog("stderr", `[service:${serviceName}] ${text}`);
   });

@@ -29,6 +29,8 @@
             "pages": [
               "start/what-is-paperclip",
               "start/quickstart",
+              "start/chay-paperclip-o-dev-mode",
+              "start/trien-khai-paperclip-len-vps",
               "start/core-concepts",
               "start/architecture"
             ]
@@ -80,6 +82,7 @@
               "deploy/local-development",
               "deploy/tailscale-private-access",
               "deploy/docker",
+              "deploy/production",
               "deploy/deployment-modes",
               "deploy/database",
               "deploy/secrets",

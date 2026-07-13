@@ -55,6 +55,7 @@ function createApp(input: {
   deploymentExposure?: "private" | "public";
   guardMutations?: boolean;
   db?: Record<string, unknown>;
+  bootstrapAdminEmail?: string;
 }) {
   const app = express();
   app.use(express.json());
@@ -63,6 +64,7 @@ function createApp(input: {
       type: "board",
       source: "session",
       userId: "user-1",
+      userEmail: "owner@example.com",
     };
     next();
   });
@@ -76,6 +78,7 @@ function createApp(input: {
       deploymentExposure: input.deploymentExposure ?? "private",
       bindHost: "127.0.0.1",
       allowedHostnames: [],
+      bootstrapAdminEmail: input.bootstrapAdminEmail,
     }),
   );
   app.use(errorHandler);
@@ -146,6 +149,29 @@ describe("POST /bootstrap/claim", () => {
 
     expect(res.status).toBe(409);
     expect(res.body.error).toContain("already claimed");
+  });
+
+  it("rejects browser first-admin claim when the signed-in email does not match the configured bootstrap admin email", async () => {
+    const app = createApp({
+      bootstrapAdminEmail: "admin@example.com",
+    });
+
+    const res = await request(app).post("/api/bootstrap/claim").send({});
+
+    expect(res.status).toBe(403);
+    expect(res.body.error).toContain("bootstrap admin email");
+    expect(claimFirstInstanceAdminMock).not.toHaveBeenCalled();
+  });
+
+  it("allows browser first-admin claim when the signed-in email matches the configured bootstrap admin email", async () => {
+    const app = createApp({
+      bootstrapAdminEmail: "owner@example.com",
+    });
+
+    const res = await request(app).post("/api/bootstrap/claim").send({});
+
+    expect(res.status).toBe(200);
+    expect(claimFirstInstanceAdminMock).toHaveBeenCalledWith(expect.anything(), { userId: "user-1" });
   });
 
   it("stays behind the board mutation origin guard", async () => {
@@ -227,5 +253,20 @@ describe("bootstrap invite first-admin acceptance", () => {
 
     expect(res.status).toBe(409);
     expect(res.body.error).toContain("already claimed");
+  });
+
+  it("rejects bootstrap invite acceptance when the signed-in email does not match the configured bootstrap admin email", async () => {
+    const app = createApp({
+      db: createDb(createBootstrapInvite()),
+      bootstrapAdminEmail: "admin@example.com",
+    });
+
+    const res = await request(app)
+      .post("/api/invites/pcp_invite_test/accept")
+      .send({ requestType: "human" });
+
+    expect(res.status).toBe(403);
+    expect(res.body.error).toContain("bootstrap admin email");
+    expect(claimFirstInstanceAdminMock).not.toHaveBeenCalled();
   });
 });

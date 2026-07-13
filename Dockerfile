@@ -40,8 +40,10 @@ COPY packages/plugins/plugin-llm-wiki/package.json packages/plugins/plugin-llm-w
 COPY packages/plugins/plugin-workspace-diff/package.json packages/plugins/plugin-workspace-diff/
 COPY patches/ patches/
 COPY scripts/link-plugin-dev-sdk.mjs scripts/
+COPY scripts/patch-embedded-postgres.mjs scripts/
 
 RUN pnpm install --frozen-lockfile
+RUN PAPERCLIP_EMBEDDED_POSTGRES_PACKAGE_DIR=/app/packages/db node ./scripts/patch-embedded-postgres.mjs
 
 FROM base AS build
 WORKDIR /app
@@ -83,6 +85,7 @@ ENV NODE_ENV=production \
 
 VOLUME ["/paperclip"]
 EXPOSE 3100
+USER node
 
 ENTRYPOINT ["docker-entrypoint.sh"]
 CMD ["node", "--import", "./server/node_modules/tsx/dist/loader.mjs", "server/dist/index.js"]

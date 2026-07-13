@@ -9,7 +9,7 @@ describe("codex managed home", () => {
     vi.restoreAllMocks();
   });
 
-  it("treats a concurrently-created expected auth symlink as success", async () => {
+  it("copies shared auth.json into the managed Codex home", async () => {
     const root = await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-codex-home-"));
     const sharedCodexHome = path.join(root, "shared-codex-home");
     const paperclipHome = path.join(root, "paperclip-home");
@@ -27,14 +27,6 @@ describe("codex managed home", () => {
     await fs.mkdir(sharedCodexHome, { recursive: true });
     await fs.writeFile(sharedAuth, '{"token":"shared"}\n', "utf8");
 
-    const originalSymlink = fs.symlink.bind(fs);
-    vi.spyOn(fs, "symlink").mockImplementationOnce(async (source, target, type) => {
-      await originalSymlink(source, target, type);
-      const error = new Error("file already exists") as NodeJS.ErrnoException;
-      error.code = "EEXIST";
-      throw error;
-    });
-
     try {
       await expect(
         prepareManagedCodexHome(
@@ -48,8 +40,9 @@ describe("codex managed home", () => {
         ),
       ).resolves.toBe(managedCodexHome);
 
-      expect((await fs.lstat(managedAuth)).isSymbolicLink()).toBe(true);
-      expect(await fs.realpath(managedAuth)).toBe(await fs.realpath(sharedAuth));
+      expect((await fs.lstat(managedAuth)).isSymbolicLink()).toBe(false);
+      expect((await fs.lstat(managedAuth)).isFile()).toBe(true);
+      expect(await fs.readFile(managedAuth, "utf8")).toBe('{"token":"shared"}\n');
     } finally {
       await fs.rm(root, { recursive: true, force: true });
     }

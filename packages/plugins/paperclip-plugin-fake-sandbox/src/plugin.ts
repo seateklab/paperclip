@@ -4,6 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import { spawn } from "node:child_process";
 import { definePlugin } from "@paperclipai/plugin-sdk";
+import { toUtf8TextChunk } from "@paperclipai/adapter-utils/text-chunk";
 import type {
   PluginEnvironmentAcquireLeaseParams,
   PluginEnvironmentDestroyLeaseParams,
@@ -106,6 +107,8 @@ async function runCommand(params: PluginEnvironmentExecuteParams, timeoutMs: num
       shell: false,
       stdio: [params.stdin != null ? "pipe" : "ignore", "pipe", "pipe"],
     });
+    child.stdout?.setEncoding("utf8");
+    child.stderr?.setEncoding("utf8");
     let stdout = "";
     let stderr = "";
     let timedOut = false;
@@ -121,10 +124,10 @@ async function runCommand(params: PluginEnvironmentExecuteParams, timeoutMs: num
       : null;
 
     child.stdout?.on("data", (chunk) => {
-      stdout += String(chunk);
+      stdout += toUtf8TextChunk(chunk);
     });
     child.stderr?.on("data", (chunk) => {
-      stderr += String(chunk);
+      stderr += toUtf8TextChunk(chunk);
     });
     child.on("error", (error) => {
       if (timer) clearTimeout(timer);
