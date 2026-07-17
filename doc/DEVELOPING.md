@@ -209,6 +209,23 @@ pnpm dev
 
 Use UTF-8 in the terminal when you paste issue text, write comments, or inspect agent output. This avoids mojibake on Windows when the adapter process or shell inherits a legacy code page.
 
+Console UTF-8 settings do not guarantee that Windows PowerShell 5.1 sends JSON
+string bodies as UTF-8. For Paperclip API mutations from Windows PowerShell,
+use the bundled request helper so the body is converted to explicit UTF-8 bytes
+and sent with a UTF-8 content type:
+
+```powershell
+$payload = @{ title = "Nghiên cứu AI Agent"; status = "todo" }
+& "skills/paperclip/scripts/paperclip-api-request.ps1" `
+  -Method POST `
+  -Path "/api/companies/$env:PAPERCLIP_COMPANY_ID/issues" `
+  -Body $payload
+```
+
+Avoid passing non-ASCII JSON directly as a string to
+`Invoke-RestMethod -Body`; the request can be corrupted before it reaches the
+API even when terminal output looks correct.
+
 Override home or instance:
 
 ```sh

@@ -23,6 +23,36 @@ Manual local CLI mode (outside heartbeat runs): use `paperclipai agent local-cli
 
 **Run audit trail:** You MUST include `-H 'X-Paperclip-Run-Id: $PAPERCLIP_RUN_ID'` on ALL API requests that modify issues (checkout, update, comment, create subtask, release). This links your actions to the current heartbeat run for traceability.
 
+### Windows PowerShell JSON mutations
+
+On Windows PowerShell, do not pass a JSON string directly to
+`Invoke-RestMethod -Body`. Windows PowerShell can encode that string with a
+legacy code page even when the terminal displays Unicode correctly, corrupting
+Vietnamese and other non-ASCII text before Paperclip receives it.
+
+Use the bundled helper for JSON mutations. It serializes PowerShell objects and
+sends BOM-less UTF-8 bytes with `application/json; charset=utf-8`, while adding
+the Paperclip authorization and run-audit headers:
+
+```powershell
+$payload = @{
+  title = "Nghiên cứu các chủ đề nổi bật về AI Agent"
+  description = "Tổng hợp nguồn tham khảo và đề xuất hướng tiếp cận."
+  status = "todo"
+}
+
+& "skills/paperclip/scripts/paperclip-api-request.ps1" `
+  -Method POST `
+  -Path "/api/companies/$env:PAPERCLIP_COMPANY_ID/issues" `
+  -Body $payload
+```
+
+The helper also accepts an already serialized JSON string as `-Body`. Do not
+replace it with a raw string-body `Invoke-RestMethod` call for non-ASCII
+payloads. Terminal settings such as `chcp 65001` and `$OutputEncoding` affect
+console and pipeline behavior but do not make raw HTTP string bodies reliably
+UTF-8 in Windows PowerShell.
+
 ## The Heartbeat Procedure
 
 Follow these steps every time you wake up:

@@ -1,4 +1,6 @@
+import { spawn } from "node:child_process";
 import fs from "node:fs/promises";
+import http from "node:http";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -9,6 +11,35 @@ import {
 
 async function makeTempDir(prefix: string): Promise<string> {
   return fs.mkdtemp(path.join(os.tmpdir(), prefix));
+}
+
+function runProcess(command: string, args: string[], cwd: string): Promise<{ stdout: string; stderr: string }> {
+  return new Promise((resolve, reject) => {
+    const child = spawn(command, args, { cwd, windowsHide: true });
+    let stdout = "";
+    let stderr = "";
+
+    child.stdout.setEncoding("utf8");
+    child.stderr.setEncoding("utf8");
+    child.stdout.on("data", (chunk: string) => {
+      stdout += chunk;
+    });
+    child.stderr.on("data", (chunk: string) => {
+      stderr += chunk;
+    });
+    child.on("error", reject);
+    child.on("close", (code) => {
+      if (code === 0) {
+        resolve({ stdout, stderr });
+        return;
+      }
+      reject(new Error(`${command} exited with ${code}\n${stderr || stdout}`));
+    });
+  });
+}
+
+function quotePowerShellLiteral(value: string): string {
+  return `'${value.replaceAll("'", "''")}'`;
 }
 
 describe("paperclip skill utils", () => {
@@ -60,6 +91,89 @@ describe("paperclip skill utils", () => {
     ).resolves.toBeUndefined();
     await expect(fs.access(path.resolve("scripts/paperclip-upload-artifact.sh"))).rejects.toThrow();
   });
+
+  it("bundles and documents a UTF-8-safe Windows PowerShell JSON request helper", async () => {
+    const skillBody = await fs.readFile(path.resolve("skills/paperclip/SKILL.md"), "utf8");
+    const helperBody = await fs.readFile(
+      path.resolve("skills/paperclip/scripts/paperclip-api-request.ps1"),
+      "utf8",
+    );
+
+    expect(skillBody).toContain("paperclip-api-request.ps1");
+    expect(skillBody).toContain("Windows PowerShell");
+    expect(helperBody).toContain("[System.Text.UTF8Encoding]::new($false)");
+    expect(helperBody).toContain('application/json; charset=utf-8');
+  });
+
+  it.runIf(process.platform === "win32")(
+    "preserves Vietnamese JSON through the bundled Windows PowerShell helper",
+    async () => {
+      const root = await makeTempDir("paperclip-powershell-utf8-");
+      cleanupDirs.add(root);
+
+      const expected = {
+        title: "Nghiên cứu các chủ đề nổi bật về AI Agent",
+        body: "Dòng một: tiếng Việt đầy đủ.\nDòng hai: Trí tuệ nhân tạo.",
+      };
+      const helperPath = path.resolve("skills/paperclip/scripts/paperclip-api-request.ps1");
+      await fs.access(helperPath);
+
+      const requestPromise = new Promise<{
+        body: Buffer;
+        contentType: string | undefined;
+        authorization: string | undefined;
+        runId: string | undefined;
+      }>((resolve, reject) => {
+        const server = http.createServer((request, response) => {
+          const chunks: Buffer[] = [];
+          request.on("data", (chunk: Buffer) => chunks.push(chunk));
+          request.on("error", reject);
+          request.on("end", () => {
+            resolve({
+              body: Buffer.concat(chunks),
+              contentType: request.headers["content-type"],
+              authorization: request.headers.authorization,
+              runId: request.headers["x-paperclip-run-id"] as string | undefined,
+            });
+            response.writeHead(200, { "Content-Type": "application/json; charset=utf-8" });
+            response.end('{"ok":true}');
+            server.close();
+          });
+        });
+
+        server.on("error", reject);
+        server.listen(0, "127.0.0.1", async () => {
+          const address = server.address();
+          if (!address || typeof address === "string") {
+            reject(new Error("Expected a TCP listener address"));
+            server.close();
+            return;
+          }
+
+          const wrapperPath = path.join(root, "invoke-helper.ps1");
+          const wrapper = `\uFEFF$payload = @{\n  title = ${quotePowerShellLiteral(expected.title)}\n  body = ${quotePowerShellLiteral(expected.body)}\n} | ConvertTo-Json -Depth 10\n& ${quotePowerShellLiteral(helperPath)} -Method POST -Path ${quotePowerShellLiteral(`http://127.0.0.1:${address.port}/capture`)} -Body $payload -ApiKey 'test-key' -RunId 'test-run'\n`;
+          await fs.writeFile(wrapperPath, wrapper, "utf8");
+
+          runProcess(
+            "powershell.exe",
+            ["-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-File", wrapperPath],
+            path.resolve("."),
+          ).catch((error) => {
+            reject(error);
+            server.close();
+          });
+        });
+      });
+
+      const received = await requestPromise;
+      expect(received.contentType).toContain("application/json");
+      expect(received.contentType).toContain("charset=utf-8");
+      expect(received.authorization).toBe("Bearer test-key");
+      expect(received.runId).toBe("test-run");
+      expect(JSON.parse(received.body.toString("utf8"))).toEqual(expected);
+    },
+    15_000,
+  );
 
   it("marks skills with required: false in SKILL.md frontmatter as optional", async () => {
     const root = await makeTempDir("paperclip-skill-optional-");
