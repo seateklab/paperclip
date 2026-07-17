@@ -25,6 +25,7 @@ import type {
   PluginIssueAssigneeSummary,
   PluginIssueOrchestrationSummary,
   PluginExecutionWorkspaceMetadata,
+  WorkerHostCallContext,
 } from "@paperclipai/plugin-sdk";
 import type { CreateIssueThreadInteraction, InviteJoinType, IssueDocumentSummary, PermissionKey, PrincipalType } from "@paperclipai/shared";
 import { pluginOperationIssueOriginKind } from "@paperclipai/shared";
@@ -1053,9 +1054,16 @@ export function buildHostServices(
 
   return {
     config: {
-      async get() {
+      async get(context?: WorkerHostCallContext) {
         const configRow = await registry.getConfig(pluginId);
-        return configRow?.configJson ?? {};
+        const globalConfig = configRow?.configJson ?? {};
+        const companyId = context?.invocationScope?.companyId;
+        if (!companyId || context?.invalidInvocationScope) return globalConfig;
+        const companyConfig = await registry.getCompanyConfig(pluginId, companyId);
+        return {
+          ...globalConfig,
+          ...(companyConfig?.configJson ?? {}),
+        };
       },
     },
 
@@ -1229,8 +1237,8 @@ export function buildHostServices(
     },
 
     secrets: {
-      async resolve(params) {
-        return secretsHandler.resolve(params);
+      async resolve(params, context) {
+        return secretsHandler.resolve(params, context);
       },
     },
 

@@ -104,6 +104,8 @@ export interface JsonSchemaFormProps {
   errors?: Record<string, string>;
   /** If true, all fields are disabled. */
   disabled?: boolean;
+  /** Allow secret-ref fields to accept raw values. Defaults to true for legacy forms. */
+  allowRawSecretValues?: boolean;
   /** Additional CSS class for the root container. */
   className?: string;
 }
@@ -385,6 +387,7 @@ interface FormFieldProps {
   isRequired?: boolean;
   errors: Record<string, string>; // needed for recursion
   path: string; // needed for recursion error filtering
+  allowRawSecretValues: boolean;
 }
 
 /**
@@ -504,6 +507,7 @@ const SecretField = React.memo(({
   error,
   defaultValue,
   maxLength,
+  allowRawSecretValues,
 }: {
   value: unknown;
   onChange: (val: unknown) => void;
@@ -514,6 +518,7 @@ const SecretField = React.memo(({
   error?: string;
   defaultValue?: unknown;
   maxLength?: number;
+  allowRawSecretValues: boolean;
 }) => {
   const [isVisible, setIsVisible] = useState(false);
   const isTextArea = maxLength != null && maxLength > TEXTAREA_THRESHOLD;
@@ -523,15 +528,15 @@ const SecretField = React.memo(({
   const isBoundToSecret = trimmed.length > 0 && isUuidLike(trimmed);
   const hasRawValue = stringValue.length > 0 && !isBoundToSecret;
 
-  const [showRawInput, setShowRawInput] = useState(hasRawValue);
+  const [showRawInput, setShowRawInput] = useState(allowRawSecretValues && hasRawValue);
 
   // Keep the raw-input panel open when the parent loads a raw value after
   // mount (e.g. an environment-config form rendering with empty defaults
   // before its API response arrives). We only promote to `true` here; manual
   // toggles off are still preserved as long as `hasRawValue` is false.
   useEffect(() => {
-    if (hasRawValue) setShowRawInput(true);
-  }, [hasRawValue]);
+    if (allowRawSecretValues && hasRawValue) setShowRawInput(true);
+  }, [allowRawSecretValues, hasRawValue]);
 
   const bindingValue: SecretBindingValue | null = isBoundToSecret
     ? { secretId: trimmed }
@@ -633,7 +638,9 @@ const SecretField = React.memo(({
       label={label}
       description={
         description ||
-        "Pick an existing company secret, or paste a raw value (Paperclip will store it as a secret on save)."
+        (allowRawSecretValues
+          ? "Pick an existing company secret, or paste a raw value (Paperclip will store it as a secret on save)."
+          : "Select an existing Paperclip company secret reference. Raw token values are not accepted.")
       }
       required={isRequired}
       error={error}
@@ -646,10 +653,12 @@ const SecretField = React.memo(({
           label=""
           placeholder="Select an existing secret"
           allowVersionSelector={false}
-          emptyHint="No active secrets yet. Create one or paste a raw value below."
+          emptyHint={allowRawSecretValues
+            ? "No active secrets yet. Create one or paste a raw value below."
+            : "No active secrets yet. Create one to bind it here."}
           disabled={disabled}
         />
-        {!isBoundToSecret ? (
+        {allowRawSecretValues && !isBoundToSecret ? (
           showRawInput ? (
             <div className="space-y-1">
               {rawInput}
@@ -805,6 +814,7 @@ const ArrayField = React.memo(({
   label,
   errors,
   path,
+  allowRawSecretValues,
 }: {
   propSchema: JsonSchemaNode;
   value: unknown;
@@ -814,6 +824,7 @@ const ArrayField = React.memo(({
   label: string;
   errors: Record<string, string>;
   path: string;
+  allowRawSecretValues: boolean;
 }) => {
   const items = Array.isArray(value) ? value : [];
   const itemSchema = propSchema.items as JsonSchemaNode;
@@ -871,6 +882,7 @@ const ArrayField = React.memo(({
                 }}
                 disabled={disabled}
                 errors={errors}
+                allowRawSecretValues={allowRawSecretValues}
               />
             </div>
             <Button
@@ -920,6 +932,7 @@ const ObjectField = React.memo(({
   label,
   errors,
   path,
+  allowRawSecretValues,
 }: {
   propSchema: JsonSchemaNode;
   value: unknown;
@@ -928,6 +941,7 @@ const ObjectField = React.memo(({
   label: string;
   errors: Record<string, string>;
   path: string;
+  allowRawSecretValues: boolean;
 }) => {
   const [isCollapsed, setIsCollapsed] = useState(false);
   const handleObjectChange = (newVal: Record<string, unknown>) => {
@@ -970,6 +984,7 @@ const ObjectField = React.memo(({
                 .filter(([errPath]) => errPath.startsWith(`${path}/`))
                 .map(([errPath, err]) => [errPath.replace(path, ""), err]),
             )}
+            allowRawSecretValues={allowRawSecretValues}
           />
         </div>
       )}
@@ -992,6 +1007,7 @@ const FormField = React.memo(({
   isRequired,
   errors,
   path,
+  allowRawSecretValues,
 }: FormFieldProps) => {
   const type = resolveType(propSchema);
   const isReadOnly = disabled || propSchema.readOnly === true;
@@ -1037,6 +1053,7 @@ const FormField = React.memo(({
           error={error}
           defaultValue={propSchema.default}
           maxLength={typeof propSchema.maxLength === "number" ? propSchema.maxLength : undefined}
+          allowRawSecretValues={allowRawSecretValues}
         />
       );
 
@@ -1067,6 +1084,7 @@ const FormField = React.memo(({
           label={label}
           errors={errors}
           path={path}
+          allowRawSecretValues={allowRawSecretValues}
         />
       );
 
@@ -1080,6 +1098,7 @@ const FormField = React.memo(({
           label={label}
           errors={errors}
           path={path}
+          allowRawSecretValues={allowRawSecretValues}
         />
       );
 
@@ -1118,6 +1137,7 @@ export function JsonSchemaForm({
   onChange,
   errors = {},
   disabled,
+  allowRawSecretValues = true,
   className,
 }: JsonSchemaFormProps) {
   const type = resolveType(schema);
@@ -1139,6 +1159,7 @@ export function JsonSchemaForm({
           onChange={handleRootScalarChange}
           disabled={disabled}
           errors={errors}
+          allowRawSecretValues={allowRawSecretValues}
         />
       </div>
     );
@@ -1248,6 +1269,7 @@ export function JsonSchemaForm({
         isRequired={isRequired}
         errors={errors}
         path={path}
+        allowRawSecretValues={allowRawSecretValues}
       />
     );
   };

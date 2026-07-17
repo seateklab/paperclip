@@ -1800,7 +1800,10 @@ export async function ensurePaperclipSkillSymlink(
   source: string,
   target: string,
   linkSkill: (source: string, target: string) => Promise<void> = (linkSource, linkTarget) =>
-    fs.symlink(linkSource, linkTarget),
+    // Windows directory junctions do not require the symbolic-link privilege
+    // that a normal directory symlink needs, so they keep local skill sync
+    // usable on a default developer workstation.
+    fs.symlink(linkSource, linkTarget, process.platform === "win32" ? "junction" : "dir"),
 ): Promise<"created" | "repaired" | "skipped"> {
   const existing = await fs.lstat(target).catch(() => null);
   if (!existing) {

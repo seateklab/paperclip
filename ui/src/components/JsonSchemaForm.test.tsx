@@ -406,4 +406,30 @@ describe("JsonSchemaForm secret-ref rendering", () => {
       root.unmount();
     });
   });
+
+  it("can disable raw secret values for company credential forms", async () => {
+    const root = createRoot(container);
+
+    await act(async () => {
+      root.render(
+        <JsonSchemaForm
+          schema={{
+            type: "object",
+            properties: { apiKey: { type: "string", format: "secret-ref" } },
+          }}
+          values={{ apiKey: "pasted-token" }}
+          allowRawSecretValues={false}
+          onChange={() => {}}
+        />,
+      );
+    });
+
+    expect(container.querySelector('[data-testid="secret-binding-picker"]')).not.toBeNull();
+    expect(container.querySelector('input[type="password"]')).toBeNull();
+    expect(container.textContent).toContain("Raw token values are not accepted");
+
+    await act(async () => {
+      root.unmount();
+    });
+  });
 });

@@ -77,9 +77,10 @@ import {
 } from "../services/plugin-local-folders.js";
 import {
   extractSecretRefPathsFromConfig,
+  findInvalidSecretRefPaths,
   PLUGIN_SECRET_REFS_DISABLED_MESSAGE,
 } from "../services/plugin-secrets-handler.js";
-import { badRequest, forbidden, notFound, unauthorized, unprocessable } from "../errors.js";
+import { badRequest, forbidden, notFound, unauthorized, unprocessable, HttpError } from "../errors.js";
 
 /** UI slot declaration extracted from plugin manifest */
 type PluginUiSlotDeclaration = NonNullable<NonNullable<PaperclipPluginManifestV1["ui"]>["slots"]>[number];
@@ -607,7 +608,14 @@ export function pluginRoutes(
   ) {
     const policy = route.checkoutPolicy ?? "none";
     if (policy === "none" || req.actor.type !== "agent") return;
-    const issueId = params.issueId;
+    let issueId = params.issueId;
+    if (!issueId && route.companyResolution?.from === "body") {
+      const body = req.body as Record<string, unknown> | undefined;
+      issueId = typeof body?.issueId === "string" ? body.issueId : undefined;
+    }
+    if (!issueId && route.companyResolution?.from === "query") {
+      issueId = typeof req.query.issueId === "string" ? req.query.issueId : undefined;
+    }
     if (!issueId) {
       throw unprocessable("Checkout-protected plugin API routes require an issueId route parameter");
     }
@@ -2324,6 +2332,107 @@ export function pluginRoutes(
       const bridgeError = mapRpcErrorToBridgeError(err);
       res.status(502).json(bridgeError);
     }
+  });
+
+  /**
+   * GET /api/plugins/:pluginId/companies/:companyId/config
+   *
+   * Read company-scoped plugin configuration. Secret fields remain UUID
+   * references; this route never resolves plaintext values.
+   */
+  router.get("/plugins/:pluginId/companies/:companyId/config", async (req, res) => {
+    assertBoardOrgAccess(req);
+    const { pluginId, companyId } = req.params;
+    assertCompanyAccess(req, companyId);
+    const plugin = await resolvePlugin(registry, pluginId);
+    if (!plugin) {
+      res.status(404).json({ error: "Plugin not found" });
+      return;
+    }
+    res.json(await registry.getCompanyConfig(plugin.id, companyId));
+  });
+
+  /** Replace company-scoped config and its exact plugin secret bindings atomically. */
+  router.post("/plugins/:pluginId/companies/:companyId/config", async (req, res) => {
+    assertBoardOrgAccess(req);
+    const { pluginId, companyId } = req.params;
+    assertCompanyAccess(req, companyId);
+    const plugin = await resolvePlugin(registry, pluginId);
+    if (!plugin) {
+      res.status(404).json({ error: "Plugin not found" });
+      return;
+    }
+
+    const body = req.body as { configJson?: Record<string, unknown> } | undefined;
+    if (!body?.configJson || typeof body.configJson !== "object" || Array.isArray(body.configJson)) {
+      res.status(400).json({ error: '"configJson" is required and must be an object' });
+      return;
+    }
+
+    const schema = plugin.manifestJson?.companyConfigSchema;
+    if (schema && Object.keys(schema).length > 0) {
+      const validation = validateInstanceConfig(body.configJson, schema);
+      if (!validation.valid) {
+        res.status(400).json({
+          error: "Configuration does not match the plugin's companyConfigSchema",
+          fieldErrors: validation.errors,
+        });
+        return;
+      }
+    }
+
+    const invalidPaths = findInvalidSecretRefPaths(body.configJson, schema);
+    if (invalidPaths.length > 0) {
+      res.status(422).json({
+        error: "Secret fields must contain Paperclip secret references from this company",
+        paths: invalidPaths,
+      });
+      return;
+    }
+
+    const refsByPath = new Map<string, string>();
+    for (const [secretId, paths] of extractSecretRefPathsFromConfig(body.configJson, schema)) {
+      for (const configPath of paths) refsByPath.set(configPath, secretId);
+    }
+
+    try {
+      const result = await registry.replaceCompanyConfigAndBindings(
+        plugin.id,
+        companyId,
+        { configJson: body.configJson },
+        refsByPath,
+      );
+      await logPluginMutationActivity(req, "plugin.company_config.updated", plugin.id, {
+        pluginId: plugin.id,
+        pluginKey: plugin.pluginKey,
+        companyId,
+        secretRefPathCount: refsByPath.size,
+        configKeyCount: Object.keys(body.configJson).length,
+      });
+      res.json(result);
+    } catch (err) {
+      const status = err instanceof HttpError ? err.status : 400;
+      res.status(status).json({ error: err instanceof Error ? err.message : String(err) });
+    }
+  });
+
+  /** Delete company-scoped config and all plugin bindings for that company. */
+  router.delete("/plugins/:pluginId/companies/:companyId/config", async (req, res) => {
+    assertBoardOrgAccess(req);
+    const { pluginId, companyId } = req.params;
+    assertCompanyAccess(req, companyId);
+    const plugin = await resolvePlugin(registry, pluginId);
+    if (!plugin) {
+      res.status(404).json({ error: "Plugin not found" });
+      return;
+    }
+    const result = await registry.deleteCompanyConfig(plugin.id, companyId);
+    await logPluginMutationActivity(req, "plugin.company_config.deleted", plugin.id, {
+      pluginId: plugin.id,
+      pluginKey: plugin.pluginKey,
+      companyId,
+    });
+    res.json(result);
   });
 
   // ===========================================================================

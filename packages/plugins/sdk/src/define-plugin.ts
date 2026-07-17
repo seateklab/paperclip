@@ -110,6 +110,8 @@ export interface PluginConfigValidationResult {
  * @see PLUGIN_SPEC.md §13.7 — `handleWebhook`
  */
 export interface PluginWebhookInput {
+  /** UUID of the company that owns this webhook delivery, when scoped. */
+  companyId?: string;
   /** Endpoint key matching the manifest declaration. */
   endpointKey: string;
   /** Inbound request headers. */

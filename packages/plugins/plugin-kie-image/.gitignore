@@ -1,0 +1,4 @@
+dist/
+package.dev.json
+**/*.orig
+**/*.orig.*

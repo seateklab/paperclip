@@ -34,22 +34,32 @@
  */
 
 import type { Db } from "@paperclipai/db";
+import type { WorkerHostCallContext } from "@paperclipai/plugin-sdk";
 import {
   collectSecretRefPaths,
   isUuidSecretRef,
   readConfigValueAtPath,
 } from "./json-schema-secret-refs.js";
+import { secretService } from "./secrets.js";
 
 export const PLUGIN_SECRET_REFS_DISABLED_MESSAGE =
-  "Plugin secret references are disabled until company-scoped plugin config lands";
+  "Plugin secret references are disabled in global instance configuration";
+export const PLUGIN_SECRET_SCOPE_REQUIRED_MESSAGE =
+  "Secret resolution requires a company-scoped invocation";
 
 // ---------------------------------------------------------------------------
 // Error helpers
 // ---------------------------------------------------------------------------
 
-function invalidSecretRef(secretRef: string): Error {
-  const err = new Error(`Invalid secret reference: ${secretRef}`);
+function invalidSecretRef(_secretRef: string): Error {
+  const err = new Error("Invalid secret reference");
   err.name = "InvalidSecretRefError";
+  return err;
+}
+
+function secretResolutionFailed(): Error {
+  const err = new Error("Secret resolution failed");
+  err.name = "SecretResolutionError";
   return err;
 }
 
@@ -113,6 +123,21 @@ export function extractSecretRefPathsFromConfig(
   return refs;
 }
 
+/** Return schema-declared paths whose values are not Paperclip secret UUIDs. */
+export function findInvalidSecretRefPaths(
+  configJson: unknown,
+  schema?: Record<string, unknown> | null,
+): string[] {
+  if (configJson == null || typeof configJson !== "object" || Array.isArray(configJson)) {
+    return [...collectSecretRefPaths(schema)];
+  }
+  return [...collectSecretRefPaths(schema)].filter((dotPath) => {
+    const value = readConfigValueAtPath(configJson as Record<string, unknown>, dotPath);
+    if (value === undefined) return false;
+    return typeof value !== "string" || !isUuidSecretRef(value);
+  });
+}
+
 // ---------------------------------------------------------------------------
 // Handler factory
 // ---------------------------------------------------------------------------
@@ -125,6 +150,8 @@ export function extractSecretRefPathsFromConfig(
 export interface PluginSecretsResolveParams {
   /** The secret reference string (a secret UUID). */
   secretRef: string;
+  /** Exact company-config path used to verify the binding. */
+  configPath?: string;
 }
 
 /**
@@ -153,7 +180,7 @@ export interface PluginSecretsService {
    * @throws {Error} If the secret is not found, has no versions, or
    *   the provider fails to resolve
    */
-  resolve(params: PluginSecretsResolveParams): Promise<string>;
+  resolve(params: PluginSecretsResolveParams, context?: WorkerHostCallContext): Promise<string>;
 }
 
 /**
@@ -205,8 +232,11 @@ export function createPluginSecretsHandler(
   const rateLimiter = createRateLimiter(30, 60_000);
 
   return {
-    async resolve(params: PluginSecretsResolveParams): Promise<string> {
-      const { secretRef } = params;
+    async resolve(
+      params: PluginSecretsResolveParams,
+      context?: WorkerHostCallContext,
+    ): Promise<string> {
+      const { secretRef, configPath } = params;
 
       // ---------------------------------------------------------------
       // 0. Rate limiting — prevent brute-force UUID enumeration
@@ -230,9 +260,23 @@ export function createPluginSecretsHandler(
         throw invalidSecretRef(trimmedRef);
       }
 
-      // Fail closed until plugin config and worker runtime both carry an
-      // explicit company scope for secret bindings and resolution.
-      throw new Error(PLUGIN_SECRET_REFS_DISABLED_MESSAGE);
+      const companyId = context?.invocationScope?.companyId;
+      if (context?.invalidInvocationScope || !companyId || !configPath) {
+        throw new Error(PLUGIN_SECRET_SCOPE_REQUIRED_MESSAGE);
+      }
+
+      try {
+        return await secretService(options.db).resolveSecretValue(companyId, trimmedRef, "latest", {
+          consumerType: "plugin",
+          consumerId: pluginId,
+          configPath,
+          actorType: "plugin",
+          actorId: pluginId,
+          pluginId,
+        });
+      } catch {
+        throw secretResolutionFailed();
+      }
     },
   };
 }
