@@ -61,6 +61,7 @@ export const portabilityAgentManifestEntrySchema = z.object({
   name: z.string().min(1),
   path: z.string().min(1),
   skills: z.array(z.string().min(1)).default([]),
+  status: z.enum(["idle", "paused"]).default("idle"),
   role: z.string().min(1),
   title: z.string().nullable(),
   icon: z.string().nullable(),

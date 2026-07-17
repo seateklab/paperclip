@@ -2283,6 +2283,143 @@ describe("company portability", () => {
     });
   });
 
+  it("round-trips paused agent status through the Paperclip sidecar", async () => {
+    const portability = companyPortabilityService({} as any);
+    const existingAgents = await agentSvc.list("company-1");
+    agentSvc.list.mockResolvedValue(existingAgents.map((agent: Record<string, unknown>) => (
+      agent.name === "CMO" ? { ...agent, status: "paused" } : agent
+    )));
+
+    const exported = await portability.exportBundle("company-1", {
+      include: {
+        company: true,
+        agents: true,
+        projects: false,
+        issues: false,
+      },
+    });
+
+    expect(exported.manifest.agents.find((agent) => agent.slug === "cmo")).toMatchObject({
+      status: "paused",
+    });
+    expect(exported.manifest.agents.find((agent) => agent.slug === "claudecoder")).toMatchObject({
+      status: "idle",
+    });
+    expect(asTextFile(exported.files[".paperclip.yaml"])).toContain('status: "paused"');
+
+    companySvc.create.mockResolvedValue({
+      id: "company-imported",
+      name: "Imported Paperclip",
+    });
+    agentSvc.list.mockResolvedValue([]);
+    agentSvc.create.mockImplementation(async (_companyId: string, input: Record<string, unknown>) => ({
+      id: `agent-${String(input.name).toLowerCase()}`,
+      name: input.name,
+      status: input.status,
+      adapterConfig: input.adapterConfig,
+      runtimeConfig: input.runtimeConfig,
+    }));
+
+    await portability.importBundle({
+      source: {
+        type: "inline",
+        rootPath: exported.rootPath,
+        files: exported.files,
+      },
+      include: {
+        company: true,
+        agents: true,
+        projects: false,
+        issues: false,
+      },
+      target: {
+        mode: "new_company",
+        newCompanyName: "Imported Paperclip",
+      },
+      agents: "all",
+      collisionStrategy: "rename",
+    }, "user-1");
+
+    expect(agentSvc.create).toHaveBeenCalledWith("company-imported", expect.objectContaining({
+      name: "CMO",
+      status: "paused",
+    }));
+    expect(agentSvc.create).toHaveBeenCalledWith("company-imported", expect.objectContaining({
+      name: "ClaudeCoder",
+      status: "idle",
+    }));
+  });
+
+  it("applies portable paused status when replacing an existing agent", async () => {
+    const portability = companyPortabilityService({} as any);
+    const files = {
+      "COMPANY.md": ['---', 'schema: "agentcompanies/v1"', 'name: "Paperclip"', "---", ""].join("\n"),
+      "agents/cmo/AGENTS.md": ['---', 'name: "CMO"', "---", "", "# CMO", ""].join("\n"),
+      ".paperclip.yaml": [
+        'schema: "paperclip/v1"',
+        "agents:",
+        "  cmo:",
+        '    status: "paused"',
+        "",
+      ].join("\n"),
+    };
+    agentSvc.list.mockResolvedValue([{
+      id: "agent-existing",
+      name: "CMO",
+      status: "idle",
+      role: "cmo",
+      adapterType: "process",
+      adapterConfig: {},
+      runtimeConfig: {},
+      budgetMonthlyCents: 0,
+      permissions: {},
+      metadata: null,
+    }]);
+    agentSvc.update.mockImplementation(async (id: string, input: Record<string, unknown>) => ({
+      id,
+      name: "CMO",
+      ...input,
+    }));
+
+    await portability.importBundle({
+      source: { type: "inline", rootPath: "paperclip-demo", files },
+      include: { company: false, agents: true, projects: false, issues: false, skills: false },
+      target: { mode: "existing_company", companyId: "company-1" },
+      agents: "all",
+      collisionStrategy: "replace",
+    }, "user-1");
+
+    expect(agentSvc.update).toHaveBeenCalledWith("agent-existing", expect.objectContaining({
+      status: "paused",
+    }));
+  });
+
+  it("rejects unsupported portable agent status", async () => {
+    const portability = companyPortabilityService({} as any);
+
+    await expect(portability.previewImport({
+      source: {
+        type: "inline",
+        rootPath: "paperclip-demo",
+        files: {
+          "COMPANY.md": ['---', 'schema: "agentcompanies/v1"', 'name: "Paperclip"', "---", ""].join("\n"),
+          "agents/cmo/AGENTS.md": ['---', 'name: "CMO"', "---", "", "# CMO", ""].join("\n"),
+          ".paperclip.yaml": [
+            'schema: "paperclip/v1"',
+            "agents:",
+            "  cmo:",
+            '    status: "running"',
+            "",
+          ].join("\n"),
+        },
+      },
+      include: { company: false, agents: true, projects: false, issues: false, skills: false },
+      target: { mode: "existing_company", companyId: "company-1" },
+      agents: "all",
+      collisionStrategy: "replace",
+    })).rejects.toThrow('Agent cmo uses unsupported portable status "running". Expected "idle" or "paused".');
+  });
+
   it("disables timer heartbeats on imported agents", async () => {
     const portability = companyPortabilityService({} as any);
 

@@ -668,6 +668,18 @@ function asString(value: unknown): string | null {
   return trimmed.length > 0 ? trimmed : null;
 }
 
+function readPortableAgentStatus(
+  value: unknown,
+  slug: string,
+): CompanyPortabilityAgentManifestEntry["status"] {
+  const status = asString(value);
+  if (!status) return "idle";
+  if (status === "idle" || status === "paused") return status;
+  throw unprocessable(
+    `Agent ${slug} uses unsupported portable status "${status}". Expected "idle" or "paused".`,
+  );
+}
+
 function asBoolean(value: unknown): boolean | null {
   return typeof value === "boolean" ? value : null;
 }
@@ -2597,6 +2609,7 @@ function buildManifestFromPackageFiles(
       name: asString(frontmatter.name) ?? title ?? slug,
       path: agentPath,
       skills: readAgentSkillRefs(frontmatter),
+      status: readPortableAgentStatus(extension.status, slug),
       role: asString(extension.role) ?? asString(frontmatter.role) ?? "agent",
       title,
       icon: asString(extension.icon),
@@ -3417,6 +3430,7 @@ export function companyPortabilityService(db: Db, storage?: StorageService) {
         }
 
         const extension = stripEmptyValues({
+          status: agent.status === "paused" ? "paused" : undefined,
           role: agent.role !== "agent" ? agent.role : undefined,
           icon: agent.icon ?? null,
           capabilities: agent.capabilities ?? null,
@@ -4317,6 +4331,7 @@ export function companyPortabilityService(db: Db, storage?: StorageService) {
         );
         const patch = {
           name: planAgent.plannedName,
+          status: manifestAgent.status,
           role: manifestAgent.role,
           title: manifestAgent.title,
           icon: manifestAgent.icon,
@@ -4365,10 +4380,8 @@ export function companyPortabilityService(db: Db, storage?: StorageService) {
           continue;
         }
 
-        const createdStatus = "idle";
         let created = await agents.create(targetCompany.id, {
           ...patch,
-          status: createdStatus,
         });
         await access.ensureMembership(targetCompany.id, "agent", created.id, "member", "active");
         await access.setPrincipalPermission(
@@ -4388,7 +4401,7 @@ export function companyPortabilityService(db: Db, storage?: StorageService) {
         } catch (err) {
           warnings.push(`Failed to materialize instructions bundle for ${manifestAgent.slug}: ${err instanceof Error ? err.message : String(err)}`);
         }
-        agentStatusById.set(created.id, created.status ?? createdStatus);
+        agentStatusById.set(created.id, created.status ?? manifestAgent.status);
         importedSlugToAgentId.set(planAgent.slug, created.id);
         existingSlugToAgentId.set(normalizeAgentUrlKey(created.name) ?? created.id, created.id);
         resultAgents.push({
