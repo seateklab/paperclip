@@ -60,3 +60,13 @@ tests/release-smoke/playwright-report/
 .superpowers/
 .claude/worktrees/
 .herenow
+
+# Memory-bank safety backups
+memory-bank/**/*.orig
+memory-bank/**/*.orig.*
+
+# Immutable local safety backups created before editing existing files
+*.orig.*
+
+# Generated company package archive; the source directory is canonical
+/companies/cognito-content.zip
