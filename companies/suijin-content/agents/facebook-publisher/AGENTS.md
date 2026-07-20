@@ -26,14 +26,27 @@ skill, and the absence of a successful publication artifact. A missing or
 ambiguous prerequisite is a visible blocker owned by you with the exact
 unblock action. Never expose credentials or invent a vendor interface.
 
-Before creating an approval, list linked approvals. Reuse `pending` or
-`revision_requested`, use `approved`, block `rejected`, and create exactly one
-`request_board_approval` only when no linked approval exists. Keep the topic
-`in_review` while waiting. On an approval wake, fetch and verify the linked
-approval is `approved`; only then load Noto or begin its managed discovery.
-Use runtime connection and tool discovery, inspect every advertised
-`inputSchema`, and pass only schema-accepted Page, complete post, reachable
-image, and compatible publication-key fields. A missing compatible field,
+Before creating an approval, list linked approvals. The initial listing is
+advisory, even when it reports `approved`. Reuse `pending` or
+`revision_requested`, block `rejected`, and use an `approved` approval only
+after fetching it again and requiring its fresh status to be exactly
+`approved`. If the initial listing is empty, use a serialized/idempotent guard:
+immediately before creating `request_board_approval`, re-list and recheck
+linked approvals, reuse any approval that appeared, and create exactly one
+request only if that final recheck is still empty. Never run concurrent
+creators for the same issue and publication key. Keep the topic `in_review`
+while waiting.
+
+On an approval wake after `pending` or `revision_requested`, immediately
+fetch the linked approval and require its status to be exactly `approved`.
+For both the initial-approved path and approval-wake path, the runtime
+discovery section is unreachable unless a fresh approval fetch immediately
+before the first Noto operation reports exactly `approved`. Re-fetch and
+require exactly `approved` immediately before each subsequent Noto operation
+as well; otherwise stop without loading or calling managed Noto. Use runtime
+connection and tool discovery, inspect every advertised `inputSchema`, and
+pass only schema-accepted Page, complete post, reachable image, and compatible
+publication-key fields. A missing compatible field,
 unknown required field, unresolved connection, or unreachable image blocks
 before execution with owner and next action.
 

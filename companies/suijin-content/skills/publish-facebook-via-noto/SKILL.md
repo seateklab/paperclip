@@ -24,16 +24,22 @@ executing any publication operation, require all of the following:
 
 ## Final board gate
 
-List the issue's linked approvals before creating anything. Apply this
-decision table:
+List the issue's linked approvals before creating anything. The initial list is
+advisory, including when it reports `approved`; never treat that listing alone
+as permission to call Noto. Apply this decision table:
 
 - Reuse a linked `pending` approval.
 - Reuse a linked `revision_requested` approval.
-- Use a linked `approved` approval for the publication path.
 - A linked `rejected` approval blocks; report the board owner and the action
   needed to resubmit a valid approval.
-- Only when no linked approval exists, create exactly one new
-  `request_board_approval`.
+- A linked `approved` approval is eligible for the publication path only after
+  it is fetched again and its fresh status is exactly `approved`.
+- If the initial listing is empty, enter a serialized/idempotent approval
+  guard. Immediately before creating `request_board_approval`, re-list and
+  recheck linked approvals. If any approval appeared, reuse it and apply this
+  same decision table; create exactly one request only when that final recheck
+  is still empty. Never run concurrent creators for the same issue and
+  publication key.
 
 The approval payload is:
 
@@ -48,14 +54,24 @@ The approval payload is:
 ```
 
 Keep the topic `in_review` while approval is `pending` or
-`revision_requested`. When awakened for an approval, fetch the linked
-approval, require status `approved`, and verify that its status is exactly
-`approved`. Do not load or call
-the managed Noto operations until that approval verification succeeds.
+`revision_requested`. If the initial linked-approval listing reports
+`approved`, immediately fetch that same linked approval and require its fresh
+status to be exactly `approved`; only then may the publication path continue.
+When awakened for an approval after `pending` or `revision_requested`,
+immediately fetch the linked approval, require status `approved`, and require
+that its fresh status is exactly `approved`; only then may the publication path
+continue. A status from either initial listing is never reused as the final
+gate.
+
+Immediately before the first Noto operation, and immediately before each
+individual Noto operation thereafter, re-fetch the selected linked approval.
+The runtime discovery section is unreachable unless that fresh approval status
+is exactly `approved`; if any fresh fetch is not exactly `approved`, stop
+without loading or calling the managed Noto operations.
 
 ## Runtime discovery and execution
-After the final approval is verified, load the managed skill `noto` and follow
-this exact discovery sequence:
+After the final approval gate is verified, load the managed skill `noto` and
+follow this exact discovery sequence:
 
 1. Call `seatek.noto:list_connections` with `platformSlug facebook` and
    `status connected`. Do not guess an ID.
