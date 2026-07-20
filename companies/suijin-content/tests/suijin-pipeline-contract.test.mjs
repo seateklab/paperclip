@@ -158,3 +158,52 @@ test("Suijin package declares the complete approval-gated Facebook pipeline", ()
   assert.doesNotMatch(sidecar, /adapter:/);
   assert.doesNotMatch(sidecar, /facebook-publisher:[\s\S]*(?:paused|status:)/i);
 });
+  assertOrdered(publisherSkill, [
+    "list_connections",
+    "get_connection",
+    "list_connection_tools",
+    "execute_connection_function",
+  ]);
+  for (const marker of [
+    "platformSlug",
+    "connected",
+    "connectionId",
+    "functionName",
+    "inputSchema",
+    "schema-compatible",
+    "image/media",
+    "success: false",
+    "noto_execution_ambiguous",
+    "external post ID",
+    "permalink",
+  ]) {
+    assert.ok(publisherSkill.includes(marker), `missing Noto Publisher marker: ${marker}`);
+  }
+  assertOrdered(publisherSkill, [
+    "inputSchema",
+    "execute_connection_function",
+    "external post ID",
+    "Facebook publication",
+  ]);
+
+  assertOrdered(publisherSkill, [
+    "local URL",
+    "block",
+    "before execution",
+  ]);
+  assertOrdered(publisherSkill, [
+    "success: false",
+    "definitive",
+    "retry",
+  ]);
+  assertOrdered(publisherSkill, [
+    "ambiguous",
+    "Never retry",
+  ]);
+
+  assertNotPresent(allPackageContent, [
+    "FACEBOOK_CREATE_POST",
+    "FACEBOOK_PUBLISH_POST",
+    "publishToFacebook",
+    "facebook.graph.",
+  ]);
