@@ -139,25 +139,6 @@ test("Suijin package declares the complete approval-gated Facebook pipeline", ()
   assert.match(publisherSkill, /external post id|externalId/i);
   assert.match(publisherSkill, /permalink|url/i);
   assert.match(publisherSkill, /mark.*done|done.*topic/i);
-
-  assertNotPresent(allPackageContent, [
-    "FACEBOOK_PAGE_ACCESS_TOKEN",
-    "graph.facebook.com",
-    "temporary Kie URL",
-    "temporary provider URL",
-    "placeholder image",
-    "SVG fallback",
-    "paperclip.noto:",
-  ]);
-  assert.doesNotMatch(allPackageContent, /(?:sk|pk|api[_-]?key|token|secret)[=:]\s*["'][A-Za-z0-9_-]{16,}["']/i);
-
-  assert.match(sidecar, /schema:\s*paperclip\/v1/);
-  assert.match(sidecar, /research-agent:[\s\S]*TAVILY_API_KEY/);
-  assert.match(sidecar, /kind:\s*secret/);
-  assert.match(sidecar, /requirement:\s*required/);
-  assert.doesNotMatch(sidecar, /adapter:/);
-  assert.doesNotMatch(sidecar, /facebook-publisher:[\s\S]*(?:paused|status:)/i);
-});
   assertOrdered(publisherSkill, [
     "list_connections",
     "get_connection",
@@ -207,3 +188,22 @@ test("Suijin package declares the complete approval-gated Facebook pipeline", ()
     "publishToFacebook",
     "facebook.graph.",
   ]);
+
+  assertNotPresent(allPackageContent, [
+    "FACEBOOK_PAGE_ACCESS_TOKEN",
+    "graph.facebook.com",
+    "temporary Kie URL",
+    "temporary provider URL",
+    "placeholder image",
+    "SVG fallback",
+    "paperclip.noto:",
+  ]);
+  assert.doesNotMatch(allPackageContent, /(?:sk|pk|api[_-]?key|token|secret)[=:]\s*["'][A-Za-z0-9_-]{16,}["']/i);
+
+  assert.match(sidecar, /schema:\s*paperclip\/v1/);
+  assert.match(sidecar, /research-agent:[\s\S]*TAVILY_API_KEY/);
+  assert.match(sidecar, /kind:\s*secret/);
+  assert.match(sidecar, /requirement:\s*required/);
+  assert.doesNotMatch(sidecar, /adapter:/);
+  assert.doesNotMatch(sidecar, /facebook-publisher:[\s\S]*(?:paused|status:)/i);
+});
