@@ -12,7 +12,7 @@ function read(relativePath) {
 function assertOrdered(text, markers) {
   let previous = -1;
   for (const marker of markers) {
-    const position = text.indexOf(marker);
+    const position = marker instanceof RegExp ? text.search(marker) : text.indexOf(marker);
     assert.notEqual(position, -1, `missing ordered marker: ${marker}`);
     assert.ok(position > previous, `marker is out of order: ${marker}`);
     previous = position;
@@ -39,7 +39,7 @@ test("Suijin package declares the complete approval-gated Facebook pipeline", ()
   const taskSkill = read("skills/create-reviewed-topic-tasks/SKILL.md");
   const writerSkill = read("skills/write-facebook-post/SKILL.md");
   const unicodeSkill = read("skills/verifying-published-text/SKILL.md");
-  const imageSkill = read("skills/kie-image-generation/SKILL.md");
+  const imageSkill = imageAgent;
   const publisherSkill = read("skills/publish-facebook-via-noto/SKILL.md");
   const allPackageContent = [
     company,
@@ -115,13 +115,13 @@ test("Suijin package declares the complete approval-gated Facebook pipeline", ()
   for (const phrase of ["Approved", "Agree", "Đồng ý", "Duyệt"]) {
     assert.ok(taskSkill.includes(phrase), `missing approval phrase: ${phrase}`);
   }
-  assertOrdered(taskSkill, ["reuse", "never create a second", "Create unmatched"]);
+  assertOrdered(taskSkill, ["Reuse", "never\n   create a second", "Create unmatched"]);
 
   assert.match(writerSkill, /facebook-post/);
   assert.match(writerSkill, /Language/);
   assert.match(writerSkill, /Vietnamese/);
   assert.match(unicodeSkill, /UTF-8/);
-  assertOrdered(writerAgent, ["read", "facebook-post", "assign", "Image Agent"]);
+  assertOrdered(writerAgent, ["read", "document keyed `facebook-post`", "assign", "Image Agent"]);
 
   assert.match(imageSkill, /facebook-image-v1/);
   assert.match(imageSkill, /gpt-image-2-text-to-image/);
@@ -134,7 +134,7 @@ test("Suijin package declares the complete approval-gated Facebook pipeline", ()
   for (const field of ["action", "targetPage", "documentKey", "imageWorkProduct", "publicationKey"]) {
     assert.ok(publisherSkill.includes(field), `missing final approval field: ${field}`);
   }
-  assertOrdered(publisherSkill, ["approval", "approved", "noto"]);
+  assertOrdered(publisherSkill, ["## Final board gate", "require status `approved`", "managed skill `noto`"]);
   assert.match(publisherSkill, /provider["']?\s*:\s*["']noto["']/);
   assert.match(publisherSkill, /external post id|externalId/i);
   assert.match(publisherSkill, /permalink|url/i);
@@ -160,10 +160,33 @@ test("Suijin package declares the complete approval-gated Facebook pipeline", ()
   ]) {
     assert.ok(publisherSkill.includes(marker), `missing Noto Publisher marker: ${marker}`);
   }
+  assert.match(publisherSkill, /connectionIds:\s*\[selectedConnectionId\]/);
+  assertOrdered(publisherSkill, ["platformSlug", "page", "limit", "total", "connectionIds"]);
+  assert.match(publisherSkill, /returned group/);
+  assert.match(publisherSkill, /terminal publication failure/);
+  assert.match(publisherSkill, /durable `blocked`/);
+  assert.match(publisherSkill, /sanitized action/);
+  assert.match(publisherSkill, /Noto error code/);
+  assert.match(publisherSkill, /sanitized operational summary/);
+  assert.match(publisherSkill, /Never copy raw provider `error`, raw\s+`output`/);
+  assert.match(publisherSkill, /explicitly\s+labeled\s+external post ID field or path/);
+  assert.match(publisherSkill, /explicitly\s+labeled\s+permalink field or path/);
+  assert.match(publisherSkill, /generic or ambiguous `id`, `url`, `link`/);
+  assert.match(publisherSkill, /duplicate values, contradictory values/);
+  assertOrdered(publisherSkill, [
+    /successful publication\s+artifact/,
+    /do not call Noto\s+again/,
+    "idempotently",
+  ]);
+  assert.match(imageAgent, /outputFormat:\s*"png"/);
+  assert.match(unicodeSkill, /document or post/);
+  assert.match(unicodeSkill, /`facebook-post`/);
+  assert.match(unicodeSkill, /hook, body, closing/);
+  assert.match(unicodeSkill, /every source link/);
   assertOrdered(publisherSkill, [
     "inputSchema",
     "execute_connection_function",
-    "external post ID",
+    "external post ID field or path",
     "Facebook publication",
   ]);
 
@@ -175,11 +198,11 @@ test("Suijin package declares the complete approval-gated Facebook pipeline", ()
   assertOrdered(publisherSkill, [
     "success: false",
     "definitive",
-    "retry",
+    /\bretried\b/,
   ]);
   assertOrdered(publisherSkill, [
     "ambiguous",
-    "Never retry",
+    /never retried/,
   ]);
 
   assertNotPresent(allPackageContent, [
