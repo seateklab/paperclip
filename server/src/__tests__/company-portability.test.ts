@@ -3266,7 +3266,8 @@ describe("company portability", () => {
     });
 
     agentSvc.list.mockResolvedValue([]);
-    secretSvc.normalizeAdapterConfigForPersistence.mockResolvedValueOnce({
+    secretSvc.normalizeAdapterConfigForPersistence.mockImplementationOnce(async (_companyId, config) => ({
+      ...config,
       normalized: true,
       env: {
         OPENAI_API_KEY: {
@@ -3275,7 +3276,7 @@ describe("company portability", () => {
           version: "latest",
         },
       },
-    });
+    }));
     agentSvc.create.mockImplementation(async (_companyId: string, input: Record<string, unknown>) => ({
       id: "agent-created",
       name: String(input.name),
@@ -3332,9 +3333,10 @@ describe("company portability", () => {
       },
     });
 
-    secretSvc.normalizeAdapterConfigForPersistence.mockResolvedValueOnce({
+    secretSvc.normalizeAdapterConfigForPersistence.mockImplementationOnce(async (_companyId, config) => ({
+      ...config,
       normalized: "updated",
-    });
+    }));
     agentSvc.update.mockImplementation(async (id: string, patch: Record<string, unknown>) => ({
       id,
       name: "ClaudeCoder",
@@ -3380,9 +3382,12 @@ describe("company portability", () => {
     );
     expect(agentSvc.update).toHaveBeenCalledWith("agent-1", expect.objectContaining({
       adapterType: "codex_local",
-      adapterConfig: {
+      adapterConfig: expect.objectContaining({
         normalized: "updated",
-      },
+        paperclipSkillSync: {
+          desiredSkills: [paperclipKey],
+        },
+      }),
     }));
   });
 

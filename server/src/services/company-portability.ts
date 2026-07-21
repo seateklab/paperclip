@@ -2930,6 +2930,7 @@ export function companyPortabilityService(db: Db, storage?: StorageService) {
     adapterConfig: Record<string, unknown>,
     desiredSkills: string[],
     mode: ImportMode,
+    agentSlug: string,
   ) {
     const effectiveAdapterType = assertKnownImportAdapterType(adapterType);
     if (mode === "agent_safe" && IMPORT_FORBIDDEN_ADAPTER_TYPES.has(effectiveAdapterType)) {
@@ -2950,6 +2951,12 @@ export function companyPortabilityService(db: Db, storage?: StorageService) {
       nextAdapterConfig,
       { strictMode: strictSecretsMode },
     );
+    const persistedDesiredSkills = readPaperclipSkillSyncPreference(normalizedAdapterConfig).desiredSkills;
+    if (desiredSkills.some((skill) => !persistedDesiredSkills.includes(skill))) {
+      throw unprocessable(
+        `Imported agent ${agentSlug} lost declared runtime skills during adapter-config persistence; re-run the import after fixing skill synchronization.`,
+      );
+    }
     await assertImportAdapterConfigConstraints(effectiveAdapterType, normalizedAdapterConfig);
     return {
       adapterType: effectiveAdapterType,
@@ -4328,6 +4335,7 @@ export function companyPortabilityService(db: Db, storage?: StorageService) {
           baseAdapterConfig,
           desiredSkills,
           mode,
+          manifestAgent.slug,
         );
         const patch = {
           name: planAgent.plannedName,
