@@ -25,15 +25,21 @@ executing any publication operation, require all of the following:
 Before requesting or executing Noto, search for a successful publication
 artifact for this issue and publication key. If one exists, do not call Noto
 again. Read the stored artifact and validate that it is a `provider: "noto"`
-publication with exactly one valid, non-empty external post ID and exactly one
-valid permalink. The stored values must be the same explicitly labeled
-identifiers required in the result contract below; generic or contradictory
-`id`, `url`, or `link` values are invalid. If the artifact is valid, idempotently
-add its permalink comment when missing and mark the topic `done` when needed;
-preserve the approval and do not reassign a closed issue. If it is invalid or
-cannot be read, set a durable `blocked` (or equivalent no-retry) state with
-owner `Facebook Publisher` and a sanitized action for Task Agent. Never call
-Noto to repair an existing artifact.
+publication for the current issue's exact `Target Facebook Page:` and
+publication key `suijin:<actual-issue-id>:facebook-v1`. In particular,
+`metadata.targetPage` must be present and exactly equal the current issue
+Page, and `metadata.publicationKey` must be present and exactly equal the
+current issue's publication key. Missing, non-scalar, or mismatched metadata
+values are invalid durable artifacts. Also require exactly one valid,
+non-empty external post ID and exactly one valid permalink. The stored values
+must be the same explicitly labeled identifiers required in the result
+contract below; generic or contradictory `id`, `url`, or `link` values are
+invalid. If the artifact is valid, idempotently add its permalink comment when
+missing and mark the topic `done` when needed; preserve the approval and do not
+reassign a closed issue. If it is invalid or cannot be read, set a durable
+`blocked` (or equivalent no-retry) state with owner `Facebook Publisher` and a
+sanitized action for Task Agent. Never call Noto to repair an existing
+artifact.
 
 ## Final board gate
 
@@ -97,14 +103,21 @@ follow this exact discovery sequence:
    reconciled with the issue Page. Multiple unresolved candidates block.
 3. Call `seatek.noto:get_connection` with the selected `connectionId` and
    require a connected status.
-4. Call `seatek.noto:list_connection_tools` with
+4. After `get_connection`, require the refreshed connection's Page/account
+   identity to exactly match the issue's `Target Facebook Page:` value. If
+   the identity is missing, ambiguous, or mismatched, block with owner
+   `Facebook Publisher` and a sanitized action for Task Agent before listing
+   tools or executing anything.
+5. Call `seatek.noto:list_connection_tools` with
    `connectionIds: [selectedConnectionId]`. Restrict all function selection to
    the returned group for that connection.
-5. Inspect every returned function's `name`, `description`, and `inputSchema`.
-6. Select one and only one function whose description and schema support
+6. Inspect every returned function's `name`, `description`, and `inputSchema`.
+7. Select one and only one function whose description and schema support
    Facebook publishing to the target Page, post text, and image/media.
-7. Call `seatek.noto:execute_connection_function` only with that advertised
-   `functionName` and an input object containing only schema-accepted fields.
+8. Call `seatek.noto:execute_connection_function` with the selected
+   `connectionId: selectedConnectionId` and advertised `functionName` in the
+   execute envelope, plus an `input` object containing only schema-accepted
+   fields. Provider-specific fields remain only inside schema-derived `input`.
 
 Use the managed operation names above exactly. Never add a provider-specific
 Facebook function name, endpoint, namespace, credential field, or direct API

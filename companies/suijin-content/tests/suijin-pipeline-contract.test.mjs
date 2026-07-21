@@ -161,6 +161,19 @@ test("Suijin package declares the complete approval-gated Facebook pipeline", ()
     assert.ok(publisherSkill.includes(marker), `missing Noto Publisher marker: ${marker}`);
   }
   assert.match(publisherSkill, /connectionIds:\s*\[selectedConnectionId\]/);
+  assert.match(
+    publisherSkill,
+    /execute_connection_function[\s\S]*?connectionId:\s*selectedConnectionId[\s\S]*?functionName/,
+  );
+  assert.match(
+    publisherSkill,
+    /After `get_connection`, require the refreshed connection's Page\/account\s+identity[\s\S]*?before\s+listing\s+tools\s+or\s+executing/,
+  );
+  assert.match(publisherSkill, /metadata\.targetPage[\s\S]*?exactly equal the current issue\s+Page/);
+  assert.match(
+    publisherSkill,
+    /metadata\.publicationKey[\s\S]*?exactly equal the\s+current issue's publication key/,
+  );
   assertOrdered(publisherSkill, ["platformSlug", "page", "limit", "total", "connectionIds"]);
   assert.match(publisherSkill, /returned group/);
   assert.match(publisherSkill, /terminal publication failure/);

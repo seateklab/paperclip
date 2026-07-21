@@ -173,3 +173,53 @@ ok 1 - Suijin package declares the complete approval-gated Facebook pipeline
 # cancelled 0
 # skipped 0
 ```
+
+## Final-review contract fixes and focused evidence
+
+Date: 2026-07-21
+
+Implemented the three final-review omissions in the package Publisher
+contract:
+
+- The execute envelope now passes `connectionId: selectedConnectionId`
+  alongside the advertised `functionName`; provider-specific fields remain
+  inside schema-derived `input`.
+- After `get_connection`, the refreshed Page/account identity must exactly
+  match the issue's `Target Facebook Page:` before tools are listed or
+  execution occurs; missing, ambiguous, or mismatched identity blocks with a
+  sanitized owner/action.
+- Existing publication reconciliation now requires
+  `metadata.targetPage` to equal the current issue Page and
+  `metadata.publicationKey` to equal
+  `suijin:<actual-issue-id>:facebook-v1`; missing or mismatched values are
+  invalid durable artifacts and block without another Noto call.
+
+The Publisher agent instructions and static contract test were updated to keep
+these requirements explicit. The required unique sibling backup was created,
+read back, verified byte-for-byte against the pre-edit Publisher skill, and
+removed only after validation. No live provider call was made.
+
+Exact final focused test command and output:
+
+```text
+node --test companies/suijin-content/tests/suijin-pipeline-contract.test.mjs
+```
+
+```text
+TAP version 13
+# Subtest: Suijin package declares the complete approval-gated Facebook pipeline
+ok 1 - Suijin package declares the complete approval-gated Facebook pipeline
+  ---
+  duration_ms: 4.7527
+  type: 'test'
+  ...
+1..1
+# tests 1
+# suites 0
+# pass 1
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 74.4486
+```
