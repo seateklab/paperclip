@@ -139,9 +139,11 @@ test("Suijin package declares the complete approval-gated Facebook pipeline", ()
   assert.match(writerSkill, /Language/);
   assert.match(writerSkill, /Vietnamese/);
   assert.match(writerSkill, /request_confirmation/);
-  assert.match(writerSkill, /latest human-authored comment/);
-  assert.match(writerSkill, /trimmed body is exactly Approved, Agree, Đồng ý, or Duyệt, case-insensitively/);
-  assert.match(writerSkill, /approving comment is agent-authored/);
+  assert.doesNotMatch(writerSkill, /latest human-authored comment/);
+  assert.match(writerSkill, /actual latest comment in\s+chronological order/);
+  assert.match(writerSkill, /That latest comment itself must be human-authored/);
+  assert.match(writerSkill, /(?:its )?trimmed body is exactly Approved, Agree, Đồng ý, or Duyệt, case-insensitively/);
+  assert.match(writerSkill, /actual latest comment is agent-authored[\s\S]*earlier human comment says Approved/);
   assert.match(writerSkill, /missing, pending, rejected, ambiguous, or superseded\s+without a fresh\s+approval/);
   assert.match(writerSkill, /Missing or ambiguous topic-child fields/);
   assert.match(writerSkill, /leave the child in_review/);
@@ -151,7 +153,7 @@ test("Suijin package declares the complete approval-gated Facebook pipeline", ()
     "## Topic gate preflight",
     "Before writing, fetch the topic child's interactions and comments.",
     "request_confirmation interaction",
-    "latest human-authored comment",
+    "actual latest comment in",
     "Only after this preflight passes",
     "Write one concise Markdown document keyed `facebook-post`",
     /Only after readback succeeds should\s+Facebook Writer comment the handoff and assign Image Agent/,
@@ -159,7 +161,9 @@ test("Suijin package declares the complete approval-gated Facebook pipeline", ()
   assert.match(writerAgent, /A Task Agent handoff comment alone is not approval/);
   assert.match(writerAgent, /fetch the topic child's interactions and comments/);
   assert.match(writerAgent, /request_confirmation interaction/);
-  assert.match(writerAgent, /latest human-authored comment/);
+  assert.doesNotMatch(writerAgent, /latest human-authored comment/);
+  assert.match(writerAgent, /actual latest comment in\s+chronological order/);
+  assert.match(writerAgent, /That latest comment itself must be human-authored/);
   assert.match(writerAgent, /visibly block with the owner and next\s+action/);
   assert.match(writerAgent, /leave the child in_review/);
   assert.match(writerAgent, /do not write, reassign, continue, or\s+assign Image Agent/);

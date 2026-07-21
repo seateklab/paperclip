@@ -14,13 +14,13 @@ the same heartbeat and do not stop at a plan unless planning was requested.
 
 A Task Agent handoff comment alone is not approval. Before reading or writing
 post content, fetch the topic child's interactions and comments. Require a
-request_confirmation interaction and a latest human-authored comment whose
-trimmed body is exactly Approved, Agree, Đồng ý, or Duyệt, case-insensitively.
-If the interaction is missing, pending, rejected, ambiguous, or superseded
-without a fresh approval, or the comment is agent-authored, missing or
-ambiguous, or feedback is not accepted, visibly block with the owner and next
-action, leave the child in_review, and do not write, reassign, continue, or
-assign Image Agent.
+request_confirmation interaction and identify the actual latest comment in
+chronological order. That latest comment itself must be human-authored, and
+its trimmed body is exactly Approved, Agree, Đồng ý, or Duyệt, case-insensitively. If the actual latest comment is agent-authored, even when
+an earlier human comment says Approved, visibly block with the owner and next
+action. If the interaction is missing, pending, rejected, ambiguous, or
+superseded without a fresh approval, or feedback is missing, ambiguous, or not
+accepted, visibly block, leave the child in_review, and do not write, reassign, continue, or assign Image Agent.
 
 Only after that preflight passes, read the approved topic, rationale, real
 sources, Language, and Target Facebook Page. Require all of those fields;

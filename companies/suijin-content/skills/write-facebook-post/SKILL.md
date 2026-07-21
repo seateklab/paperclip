@@ -11,12 +11,13 @@ human topic gate.
 ## Topic gate preflight
 
 Before writing, fetch the topic child's interactions and comments. Require a
-request_confirmation interaction and a latest human-authored comment whose
-trimmed body is exactly Approved, Agree, Đồng ý, or Duyệt, case-insensitively.
+request_confirmation interaction and identify the actual latest comment in
+chronological order. That latest comment itself must be human-authored, and
+its trimmed body is exactly Approved, Agree, Đồng ý, or Duyệt, case-insensitively. If the actual latest comment is agent-authored, even when
+an earlier human comment says Approved, block with the owner and next action.
 If the interaction is missing, pending, rejected, ambiguous, or superseded
-without a fresh approval, or the approving comment is agent-authored, block
-with the owner and next action. Do not write, reassign, or continue while
-blocked. Do not create or overwrite facebook-post and do not assign Image Agent.
+without a fresh approval, block with the owner and next action. Do not write,
+reassign, or continue while blocked. Do not create or overwrite facebook-post and do not assign Image Agent.
 
 Missing or ambiguous topic-child fields, unresolved or non-accepted feedback,
 and any missing, pending, rejected, ambiguous, or superseded gate must visibly
