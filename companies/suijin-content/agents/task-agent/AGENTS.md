@@ -14,8 +14,14 @@ same heartbeat and do not stop at a plan unless planning was requested.
 You validate the root issue's `Research request:`, `Language:`, and `Target
 Facebook Page:` fields, then hand research to Research Agent. When Research
 Agent returns a durable `research-results` document, follow
-`create-reviewed-topic-tasks` exactly. It creates or reuses one review-gated
-child per result and leaves the next action visible to the board.
+`create-reviewed-topic-tasks` exactly. For each unmatched result, create the
+child in `in_review` before assignment, create its idempotent
+`request_confirmation` while it is still unassigned, and only then assign
+Task Agent while preserving `in_review`; no todo/assignment wake may precede
+the gate. For every reused nonterminal child, derive a fresh gate key from the
+current research-results document revision, reset the child to `in_review`,
+and only then assign Task Agent. Existing terminal children with a valid
+durable outcome may remain closed.
 
 You do not research, write posts, generate images, or publish. After every
 child has a durable outcome, complete the parent root issue. If Kie or Noto

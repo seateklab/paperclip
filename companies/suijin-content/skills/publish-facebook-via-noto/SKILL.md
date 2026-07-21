@@ -41,29 +41,42 @@ reassign a closed issue. If it is invalid or cannot be read, set a durable
 sanitized action for Task Agent. Never call Noto to repair an existing
 artifact.
 
+## Exclusive-run preflight
+
+Before approval creation or external execution, read the issue live-runs
+endpoint using the supported Paperclip control-plane contract. Require the
+response to prove that exactly the current `PAPERCLIP_RUN_ID` is live for this
+issue and no other live run exists. If any other live run exists, if the
+current run is missing, or if the response cannot prove exclusivity, block with
+owner `Facebook Publisher` and a sanitized next action. Do not claim an atomic
+core lock; this package has no such lock. The exclusive-run check must pass
+before approval creation and again before external execution.
+
 ## Final board gate
 
-List the issue's linked approvals before creating anything. The initial list is
+List linked approvals and filter them to exact `type:
+request_board_approval` before selecting or reusing anything. Ignore every
+other approval type for this publication gate. The initial filtered list is
 advisory, including when it reports `approved`; never treat that listing alone
 as permission to call Noto. Apply this decision table:
 
-- Reuse a linked `pending` approval.
-- Reuse a linked `revision_requested` approval.
-- A linked `rejected` approval blocks; report the board owner and the action
-  needed to resubmit a valid approval.
-- A linked `approved` approval is eligible for the publication path only after
-  it is fetched again and its fresh status is exactly `approved`.
-- If the initial listing is empty, enter a serialized/idempotent approval
-  guard. Immediately before creating `request_board_approval`, re-list and
-  recheck linked approvals. If any approval appeared, reuse it and apply this
-  same decision table; create exactly one request only when that final recheck
-  is still empty. Never run concurrent creators for the same issue and
-  publication key.
+- Reuse a filtered linked `pending` approval.
+- Reuse a filtered linked `revision_requested` approval.
+- A filtered linked `rejected` approval blocks; report the board owner and the
+  action needed to resubmit a valid approval.
+- A filtered linked `approved` approval is eligible only after fetching that
+  same approval again.
+- If the initial filtered listing is empty, perform the exclusive-run check,
+  enter a serialized/idempotent approval guard, and immediately re-list and
+  re-filter linked approvals. If any matching approval appeared, reuse it;
+  create exactly one request only when that final recheck is still empty.
+  Never run concurrent creators for the same issue and publication key.
 
 The approval payload is:
 
 ```json
 {
+  "type": "request_board_approval",
   "action": "publish_facebook_post",
   "targetPage": "<issue Target Facebook Page>",
   "documentKey": "facebook-post",
@@ -72,21 +85,24 @@ The approval payload is:
 }
 ```
 
+For every reuse path, validate the freshly fetched approval payload exactly.
+Fetch the selected approval immediately before reuse or Noto execution:
+`type` is `request_board_approval`, `targetPage` is the current issue's
+`Target Facebook Page`, `documentKey` is `facebook-post`,
+`imageWorkProduct` is `facebook-image`, and `publicationKey` is
+`suijin:<actual-issue-id>:facebook-v1`. The fresh fetch must require status `approved`
+before any Noto operation. A missing, ambiguous, stale, mismatched, or
+non-scalar field blocks without loading or calling managed Noto.
+
 Keep the topic `in_review` while approval is `pending` or
-`revision_requested`. If the initial linked-approval listing reports
-`approved`, immediately fetch that same linked approval and require its fresh
-status to be exactly `approved`; only then may the publication path continue.
-When awakened for an approval after `pending` or `revision_requested`,
-immediately fetch the linked approval, require status `approved`, and require
-that its fresh status is exactly `approved`; only then may the publication path
-continue. A status from either initial listing is never reused as the final
-gate.
+`revision_requested`. On an approval wake, immediately fetch the matching
+approval and apply the same exact type, status, and payload checks. A status
+from an initial list is never reused as the final gate.
 
 Immediately before the first Noto operation, and immediately before each
-individual Noto operation thereafter, re-fetch the selected linked approval.
-The runtime discovery section is unreachable unless that fresh approval status
-is exactly `approved`; if any fresh fetch is not exactly `approved`, stop
-without loading or calling the managed Noto operations.
+individual Noto operation thereafter, re-run the exclusive-run preflight and
+re-fetch the selected approval. The runtime discovery section is unreachable
+unless both checks pass and fresh status is exactly `approved`.
 
 ## Runtime discovery and execution
 
@@ -140,8 +156,9 @@ assumed provider interface:
    reach it. A local URL, guessed upload field, guessed base64 form, or
    inaccessible path blocks before execution.
 4. Map publication key `suijin:<actual-issue-id>:facebook-v1` only when the
-   discovered schema advertises a compatible publication or idempotency field.
-   Do not invent one.
+   discovered schema advertises a compatible publication/idempotency field.
+   If no compatible publication/idempotency field is advertised, block before
+   external execution; do not invent one.
 5. Any unknown required field blocks before execution. Report the exact
    missing field, its owner, and the action needed to make the schema
    compatible.
