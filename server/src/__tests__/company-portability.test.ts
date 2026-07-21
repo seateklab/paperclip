@@ -5,6 +5,7 @@ import path from "node:path";
 import { Readable } from "node:stream";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { CompanyPortabilityFileEntry } from "@paperclipai/shared";
+import type { Db } from "@paperclipai/db";
 
 const companySvc = {
   getById: vi.fn(),
@@ -2087,7 +2088,15 @@ describe("company portability", () => {
   });
 
   it("imports packaged skills and restores desired skill refs on agents", async () => {
-    const portability = companyPortabilityService({} as any);
+    const portability = companyPortabilityService({} as Db);
+    const desiredSkills = [
+      "create-reviewed-topic-tasks",
+      "write-facebook-post",
+    ];
+    const resolvedSkills = [
+      "company/company-imported/create-reviewed-topic-tasks",
+      "company/company-imported/write-facebook-post",
+    ];
 
     companySvc.create.mockResolvedValue({
       id: "company-imported",
@@ -2096,8 +2105,33 @@ describe("company portability", () => {
     accessSvc.ensureMembership.mockResolvedValue(undefined);
     agentSvc.create.mockResolvedValue({
       id: "agent-created",
-      name: "ClaudeCoder",
+      name: "OpenCode",
     });
+    const existingAgents = await agentSvc.list("company-1", { includeTerminated: true });
+    agentSvc.list.mockResolvedValue([
+      ...existingAgents,
+      {
+        id: "agent-opencode",
+        name: "OpenCode",
+        status: "idle",
+        role: "engineer",
+        title: "OpenCode Agent",
+        icon: "code",
+        reportsTo: null,
+        capabilities: "Writes code",
+        adapterType: "opencode_local",
+        adapterConfig: {
+          model: "openai/gpt-5-nano",
+          paperclipSkillSync: {
+            desiredSkills,
+          },
+        },
+        runtimeConfig: {},
+        budgetMonthlyCents: 0,
+        permissions: {},
+        metadata: null,
+      },
+    ]);
 
     const exported = await portability.exportBundle("company-1", {
       include: {
@@ -2108,6 +2142,23 @@ describe("company portability", () => {
       },
     });
 
+    const agentMarkdown = asTextFile(exported.files["agents/opencode/AGENTS.md"]);
+    expect(agentMarkdown).toContain('- "create-reviewed-topic-tasks"');
+    expect(agentMarkdown).toContain('- "write-facebook-post"');
+    companySkillSvc.importPackageFiles.mockResolvedValue([
+      {
+        originalKey: desiredSkills[0],
+        originalSlug: desiredSkills[0],
+        skill: { key: resolvedSkills[0], slug: desiredSkills[0] },
+        action: "imported",
+      },
+      {
+        originalKey: desiredSkills[1],
+        originalSlug: desiredSkills[1],
+        skill: { key: resolvedSkills[1], slug: desiredSkills[1] },
+        action: "imported",
+      },
+    ]);
     agentSvc.list.mockResolvedValue([]);
 
     await portability.importBundle({
@@ -2135,12 +2186,96 @@ describe("company portability", () => {
       onConflict: "replace",
     });
     expect(agentSvc.create).toHaveBeenCalledWith("company-imported", expect.objectContaining({
+      adapterType: "opencode_local",
+      adapterConfig: expect.objectContaining({
+        paperclipSkillSync: {
+          desiredSkills: resolvedSkills,
+        },
+      }),
+    }));
+    expect(agentSvc.create).toHaveBeenCalledWith("company-imported", expect.objectContaining({
+      name: "ClaudeCoder",
       adapterConfig: expect.objectContaining({
         paperclipSkillSync: {
           desiredSkills: [paperclipKey],
         },
       }),
     }));
+  });
+
+  it("rejects imported agents when persistence drops declared skill synchronization", async () => {
+    const portability = companyPortabilityService({} as Db);
+    const desiredSkills = [
+      "create-reviewed-topic-tasks",
+      "write-facebook-post",
+    ];
+
+    companySvc.create.mockResolvedValue({
+      id: "company-imported",
+      name: "Imported Paperclip",
+    });
+    accessSvc.ensureMembership.mockResolvedValue(undefined);
+    agentSvc.create.mockResolvedValue({
+      id: "agent-created",
+      name: "OpenCode",
+    });
+    agentSvc.list.mockResolvedValue([{
+      id: "agent-opencode",
+      name: "OpenCode",
+      status: "idle",
+      role: "engineer",
+      title: "OpenCode Agent",
+      icon: "code",
+      reportsTo: null,
+      capabilities: "Writes code",
+      adapterType: "opencode_local",
+      adapterConfig: {
+        model: "openai/gpt-5-nano",
+        paperclipSkillSync: {
+          desiredSkills,
+        },
+      },
+      runtimeConfig: {},
+      budgetMonthlyCents: 0,
+      permissions: {},
+      metadata: null,
+    }]);
+    const exported = await portability.exportBundle("company-1", {
+      include: {
+        company: true,
+        agents: true,
+        projects: false,
+        issues: false,
+      },
+    });
+    agentSvc.list.mockResolvedValue([]);
+    secretSvc.normalizeAdapterConfigForPersistence.mockImplementation(async (_companyId, config) => {
+      const { paperclipSkillSync: _paperclipSkillSync, ...withoutSkillSync } = config;
+      return withoutSkillSync;
+    });
+
+    await expect(portability.importBundle({
+      source: {
+        type: "inline",
+        rootPath: exported.rootPath,
+        files: exported.files,
+      },
+      include: {
+        company: true,
+        agents: true,
+        projects: false,
+        issues: false,
+      },
+      target: {
+        mode: "new_company",
+        newCompanyName: "Imported Paperclip",
+      },
+      agents: "all",
+      collisionStrategy: "rename",
+    }, "user-1")).rejects.toThrow(
+      "Imported agent opencode lost declared runtime skills during adapter-config persistence; re-run the import after fixing skill synchronization.",
+    );
+    expect(agentSvc.create).not.toHaveBeenCalled();
   });
 
   it("imports a packaged company logo and attaches it to the target company", async () => {

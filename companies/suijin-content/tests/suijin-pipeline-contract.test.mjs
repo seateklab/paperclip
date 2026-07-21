@@ -58,6 +58,8 @@ test("Suijin package declares the complete approval-gated Facebook pipeline", ()
     imageSkill,
     publisherSkill,
   ].join("\n");
+  const taskAgentMarker = company.match(/\btask-agent\b/)?.[0] ?? "";
+  const topicSkill = [taskAgentMarker, taskSkill].join("\n");
 
   assert.match(company, /name:\s*Suijin Content/);
   assert.match(company, /slug:\s*suijin-content/);
@@ -109,6 +111,22 @@ test("Suijin package declares the complete approval-gated Facebook pipeline", ()
   assert.doesNotMatch(researchSkill, /hard-coded topic|fixed topic|default topic/i);
 
   assert.match(taskSkill, /request_confirmation/);
+  assertOrdered(topicSkill, [
+    "task-agent",
+    "request_confirmation",
+    "in_review",
+    "facebook-writer",
+  ]);
+  assert.match(taskSkill, /resolve Task Agent's assigned agent ID in[\s\S]*`assigneeAgentId`/);
+  assert.match(taskSkill, /Create the child interaction before changing its status/);
+  assert.match(taskSkill, /idempotency key `suijin-topic-review:<child-id>:initial`/);
+  assert.match(
+    taskSkill,
+    /only a human-authored comment[\s\S]*equals exactly one of[\s\S]*`Approved`, `Agree`, `Đồng ý`, or `Duyệt`/,
+  );
+  assert.match(taskSkill, /Any other comment is feedback[\s\S]*keep the\s+child\s+`in_review`/);
+  const initialTopicGate = taskSkill.split("## Feedback wake", 1)[0];
+  assert.doesNotMatch(initialTopicGate, /facebook-writer/);
   assert.match(taskSkill, /supersedeOnUserComment:\s*true/);
   assert.match(taskSkill, /continuationPolicy:\s*["']none["']/);
   assert.match(taskSkill, /in_review/);
