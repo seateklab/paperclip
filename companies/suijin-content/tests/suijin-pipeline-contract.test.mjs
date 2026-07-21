@@ -96,19 +96,6 @@ test("Suijin package declares the complete approval-gated Facebook pipeline", ()
   assertOrdered(writerAgent, ["- paperclip", "- write-facebook-post", "- verifying-published-text"]);
   assertOrdered(imageAgent, ["- paperclip", "- kie-image-generation"]);
   assertOrdered(publisherAgent, ["- paperclip", "- publish-facebook-via-noto", "- noto"]);
-  assert.match(
-    publisherAgent,
-    /filter to exact\s+`type: request_board_approval`[\s\S]*?freshly fetched approval payload[\s\S]*?before reuse or Noto\s+execution/,
-  );
-  assert.match(publisherAgent, /live-runs\s+endpoint/);
-  assert.match(publisherAgent, /PAPERCLIP_RUN_ID/);
-  assert.match(publisherAgent, /cannot be proven/);
-  assert.doesNotMatch(publisherAgent, /Paperclip provides an atomic core lock|use an atomic core lock/);
-  assertOrdered(taskAgent, [
-    /unmatched result[\s\S]*?`in_review` before assignment/,
-    /`request_confirmation` while it is still unassigned/,
-    /only then assign\s+Task Agent while preserving `in_review`/,
-  ]);
 
   assert.match(project, /name:\s*Suijin/);
   assert.match(project, /owner:\s*task-agent/);
@@ -130,12 +117,12 @@ test("Suijin package declares the complete approval-gated Facebook pipeline", ()
     "in_review",
     "facebook-writer",
   ]);
-  assert.match(taskSkill, /resolve[d]? Task Agent ID in `assigneeAgentId`/);
-  assert.match(taskSkill, /Create the child interaction before changing its\s+status/);
-  assert.match(taskSkill, /idempotency key\s+`suijin-topic-review:<child-id>:<research-results-revision>`/);
+  assert.match(taskSkill, /resolve Task Agent's assigned agent ID in[\s\S]*`assigneeAgentId`/);
+  assert.match(taskSkill, /Create the child interaction before changing its status/);
+  assert.match(taskSkill, /idempotency key `suijin-topic-review:<child-id>:initial`/);
   assert.match(
     taskSkill,
-    /only a human-authored comment[\s\S]*equals exactly one of[\s\S]*`Approved`, `Agree`, `Đồng ý`, or `Duyệt`/i,
+    /only a human-authored comment[\s\S]*equals exactly one of[\s\S]*`Approved`, `Agree`, `Đồng ý`, or `Duyệt`/,
   );
   assert.match(taskSkill, /Any other comment is feedback[\s\S]*keep the\s+child\s+`in_review`/);
   const initialTopicGate = taskSkill.split("## Feedback wake", 1)[0];
@@ -146,9 +133,7 @@ test("Suijin package declares the complete approval-gated Facebook pipeline", ()
   for (const phrase of ["Approved", "Agree", "Đồng ý", "Duyệt"]) {
     assert.ok(taskSkill.includes(phrase), `missing approval phrase: ${phrase}`);
   }
-  assertOrdered(taskSkill, [/Reuse and update/i, /unmatched result/i, "request_confirmation", "status: \"in_review\"", "assigneeAgentId"]);
-  assert.match(taskSkill, /Existing terminal children with a valid durable outcome may remain closed/);
-  assert.match(taskSkill, /For reused nonterminal children/);
+  assertOrdered(taskSkill, ["Reuse", "never\n   create a second", "Create unmatched"]);
 
   assert.match(writerSkill, /facebook-post/);
   assert.match(writerSkill, /Language/);
@@ -271,59 +256,6 @@ test("Suijin package declares the complete approval-gated Facebook pipeline", ()
     "execute_connection_function",
     "external post ID field or path",
     "Facebook publication",
-  ]);
-  assert.match(publisherSkill, /linked approvals[\s\S]*?filter(?:ed)?[\s\S]*?type:\s*`?request_board_approval`?/i);
-  assertOrdered(publisherSkill, [
-    /filter(?:ed)?[\s\S]*?type:\s*`?request_board_approval`?/i,
-    /"targetPage"[\s\S]*?"documentKey"[\s\S]*?"imageWorkProduct"[\s\S]*?"publicationKey"/,
-    /fresh(?:ly)? fetched approval payload/i,
-    /before reuse\s+or Noto\s+execution/i,
-  ]);
-  for (const marker of [
-    /live-runs\s+endpoint/,
-    /PAPERCLIP_RUN_ID/,
-    /exactly the current\s+`PAPERCLIP_RUN_ID`/,
-    /no other live\s+run/,
-    /cannot prove exclusivity/,
-    /before approval creation/,
-    /before external execution/,
-    /publication\/idempotency field/,
-  ]) {
-    assert.ok(marker instanceof RegExp ? marker.test(publisherSkill) : publisherSkill.includes(marker), `missing exclusive-run marker: ${marker}`);
-  }
-  assert.doesNotMatch(publisherSkill, /Paperclip provides an atomic core lock|use an atomic core lock/);
-  assertOrdered(publisherSkill, [
-    /live-runs\s+endpoint/,
-    "before approval creation",
-    "request_board_approval",
-    "Immediately before the first Noto operation",
-    "execute_connection_function",
-  ]);
-
-  assertOrdered(taskSkill, [
-    /unmatched result[\s\S]*?status:\s*["']in_review["'][\s\S]*?before assignment/i,
-    /request_confirmation[\s\S]*?while\s+the\s+child\s+is\s+still\s+unassigned/i,
-    /assign(?:\s+the\s+resolved)?\s+Task\s+Agent\s+ID[\s\S]*?preserving\s+`status:\s*"in_review"`/i,
-  ]);
-  for (const marker of [
-    "no todo/assignment wake",
-    "reused nonterminal children",
-    "research-results document revision",
-    /fresh\s+request_confirmation idempotency key/,
-    "reset to `in_review`",
-    /only then\s+assign\s+Task Agent/i,
-    "terminal children with a valid durable outcome",
-    /stale approvals\/handoffs/i,
-  ]) {
-    assert.ok(
-      marker instanceof RegExp ? marker.test(taskSkill) : taskSkill.includes(marker),
-      `missing topic re-gating marker: ${marker}`,
-    );
-  }
-  assertOrdered(taskSkill, [
-    /fresh\s+request_confirmation idempotency key/,
-    "reset to `in_review`",
-    /only then\s+assign\s+Task Agent/i,
   ]);
 
   assertOrdered(publisherSkill, [

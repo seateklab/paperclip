@@ -34,32 +34,25 @@ Invalid stored identifiers are a durable `blocked` outcome owned by Facebook
 Publisher with a sanitized next action. Never expose credentials or invent a
 vendor interface.
 
-Before any approval creation or external execution, read the issue live-runs
-endpoint using the supported control-plane contract. Continue only when the
-response proves exactly the current `PAPERCLIP_RUN_ID` is live for this issue
-and no other live run exists. If the current run is absent, another live run
-exists, or exclusivity cannot be proven, block with owner `Facebook Publisher`
-and a sanitized next action. Do not claim an atomic core lock.
+Before creating an approval, list linked approvals. The initial listing is
+advisory, even when it reports `approved`. Reuse `pending` or
+`revision_requested`, block `rejected`, and use an `approved` approval only
+after fetching it again and requiring its fresh status to be exactly
+`approved`. If the initial listing is empty, use a serialized/idempotent guard:
+immediately before creating `request_board_approval`, re-list and recheck
+linked approvals, reuse any approval that appeared, and create exactly one
+request only if that final recheck is still empty. Never run concurrent
+creators for the same issue and publication key. Keep the topic `in_review`
+while waiting.
 
-Before creating an approval, list linked approvals and filter to exact
-`type: request_board_approval`; other approval types are not candidates. The
-initial filtered listing is advisory. Reuse `pending` or
-`revision_requested`, block `rejected`, and fetch an `approved` approval again.
-The freshly fetched approval payload must exactly match the current
-`Target Facebook Page`, `documentKey: facebook-post`,
-`imageWorkProduct: facebook-image`, and
-`publicationKey: suijin:<actual-issue-id>:facebook-v1` before reuse or Noto
-execution. If the filtered listing is empty, run the supported exclusive-run
-preflight immediately before the final re-list and create exactly one
-idempotent request only if it remains empty. Keep the topic `in_review` while
-waiting; do not run concurrent creators.
-
-On every approval wake, fetch the matching approval and revalidate its exact
-type, fresh `approved` status, and exact payload. Immediately before every
-Noto operation, rerun the exclusive-run preflight and fresh approval fetch.
-Inspect the discovered Noto schema and require a compatible
-publication/idempotency field; without one, block before external execution.
-Call paginated `list_connections` with its managed `page`, `limit`, and `total`
+On an approval wake after `pending` or `revision_requested`, immediately
+fetch the linked approval and require its status to be exactly `approved`.
+For both the initial-approved path and approval-wake path, the runtime
+discovery section is unreachable unless a fresh approval fetch immediately
+before the first Noto operation reports exactly `approved`. Re-fetch and
+require exactly `approved` immediately before each subsequent Noto operation
+as well; otherwise stop without loading or calling managed Noto. Use
+paginated `list_connections` with its managed `page`, `limit`, and `total`
 contract before selecting a Page. After `get_connection`, require the
 refreshed Page/account identity to exactly match the issue's `Target Facebook
 Page:` before listing tools or executing; missing, ambiguous, or mismatched
