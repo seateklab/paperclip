@@ -138,8 +138,41 @@ test("Suijin package declares the complete approval-gated Facebook pipeline", ()
   assert.match(writerSkill, /facebook-post/);
   assert.match(writerSkill, /Language/);
   assert.match(writerSkill, /Vietnamese/);
+  assert.match(writerSkill, /request_confirmation/);
+  assert.match(writerSkill, /latest human-authored comment/);
+  assert.match(writerSkill, /trimmed body is exactly Approved, Agree, Đồng ý, or Duyệt, case-insensitively/);
+  assert.match(writerSkill, /approving comment is agent-authored/);
+  assert.match(writerSkill, /missing, pending, rejected, ambiguous, or superseded\s+without a fresh\s+approval/);
+  assert.match(writerSkill, /Missing or ambiguous topic-child fields/);
+  assert.match(writerSkill, /leave the child in_review/);
+  assert.match(writerSkill, /A Task Agent handoff comment alone is not\s+approval/);
+  assert.match(writerSkill, /Do not create\s+or overwrite facebook-post and do not assign Image Agent/);
+  assertOrdered(writerSkill, [
+    "## Topic gate preflight",
+    "Before writing, fetch the topic child's interactions and comments.",
+    "request_confirmation interaction",
+    "latest human-authored comment",
+    "Only after this preflight passes",
+    "Write one concise Markdown document keyed `facebook-post`",
+    /Only after readback succeeds should\s+Facebook Writer comment the handoff and assign Image Agent/,
+  ]);
+  assert.match(writerAgent, /A Task Agent handoff comment alone is not approval/);
+  assert.match(writerAgent, /fetch the topic child's interactions and comments/);
+  assert.match(writerAgent, /request_confirmation interaction/);
+  assert.match(writerAgent, /latest human-authored comment/);
+  assert.match(writerAgent, /visibly block with the owner and next\s+action/);
+  assert.match(writerAgent, /leave the child in_review/);
+  assert.match(writerAgent, /do not write, reassign, continue, or\s+assign Image Agent/);
+  assertOrdered(writerAgent, [
+    "Before reading or writing",
+    "request_confirmation interaction",
+    "visibly block",
+    "Only after that preflight passes",
+    "document keyed `facebook-post`",
+    "assign Image Agent. The handoff",
+  ]);
   assert.match(unicodeSkill, /UTF-8/);
-  assertOrdered(writerAgent, ["read", "document keyed `facebook-post`", "assign", "Image Agent"]);
+  assertOrdered(writerAgent, ["read", "document keyed `facebook-post`", "assign Image Agent. The handoff"]);
 
   assert.match(imageSkill, /facebook-image-v1/);
   assert.match(imageSkill, /gpt-image-2-text-to-image/);

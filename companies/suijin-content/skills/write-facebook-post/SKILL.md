@@ -6,10 +6,26 @@ description: Write a source-grounded Facebook post for an approved Suijin topic
 # Write Facebook Post
 
 Use this skill only after Task Agent has released a topic child through the
-human topic gate. Read the child's `Topic:`, `Rationale:`, `Sources:`,
-`Language:`, and `Target Facebook Page:` fields. Missing topic, sources, or
-Page is a visible validation blocker; do not fill gaps through fresh research
-or invented claims.
+human topic gate.
+
+## Topic gate preflight
+
+Before writing, fetch the topic child's interactions and comments. Require a
+request_confirmation interaction and a latest human-authored comment whose
+trimmed body is exactly Approved, Agree, Đồng ý, or Duyệt, case-insensitively.
+If the interaction is missing, pending, rejected, ambiguous, or superseded
+without a fresh approval, or the approving comment is agent-authored, block
+with the owner and next action. Do not write, reassign, or continue while
+blocked. Do not create or overwrite facebook-post and do not assign Image Agent.
+
+Missing or ambiguous topic-child fields, unresolved or non-accepted feedback,
+and any missing, pending, rejected, ambiguous, or superseded gate must visibly
+block and leave the child in_review. A Task Agent handoff comment alone is not
+approval.
+Only after this preflight passes, read the child's `Topic:`, `Rationale:`,
+`Sources:`, `Language:`, and `Target Facebook Page:` fields. Missing topic,
+sources, or Page remains a visible validation blocker; do not fill gaps
+through fresh research or invented claims.
 
 Inherit the issue's `Language:` exactly. If the field is omitted, default to
 Vietnamese. Keep the post in that language unless the issue explicitly
