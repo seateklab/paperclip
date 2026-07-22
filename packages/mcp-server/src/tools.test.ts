@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { PaperclipApiClient } from "./client.js";
-import { createToolDefinitions } from "./tools.js";
+import { createPluginToolDefinitions, createToolDefinitions } from "./tools.js";
 
 function makeClient() {
   return new PaperclipApiClient({
@@ -9,6 +9,7 @@ function makeClient() {
     companyId: "11111111-1111-1111-1111-111111111111",
     agentId: "22222222-2222-2222-2222-222222222222",
     runId: "33333333-3333-3333-3333-333333333333",
+    projectId: null,
   });
 }
 
@@ -67,6 +68,29 @@ describe("paperclip MCP tools", () => {
       "http://localhost:3100/api/companies/11111111-1111-1111-1111-111111111111/issues",
     );
     expect(response.content[0]?.text).toContain("issue-1");
+  });
+
+  it("does not substitute the company id for the required plugin project context", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(
+      mockJsonResponse([{
+        name: "demo:tool",
+        displayName: "Demo tool",
+        description: "A test tool",
+        parametersSchema: { type: "object", properties: {} },
+        pluginId: "demo",
+      }]),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const [tool] = await createPluginToolDefinitions(makeClient());
+    expect(tool).toBeDefined();
+    const response = await tool!.execute({});
+
+    expect(response.content[0]?.text).toContain("project context");
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(String((fetchMock.mock.calls[0] as [string])[0])).toBe(
+      "http://localhost:3100/api/plugins/tools",
+    );
   });
 
   it("uses default agent id for checkout requests", async () => {

@@ -221,6 +221,87 @@ async function getIssueWorkspaceRuntime(client: PaperclipApiClient, issueId: str
   };
 }
 
+function jsonSchemaToZod(schema: Record<string, unknown>): z.ZodTypeAny {
+  if (!schema || typeof schema !== "object") return z.any();
+
+  const type = schema.type;
+  if (type === "string") {
+    if (Array.isArray(schema.enum) && schema.enum.length > 0) {
+      return z.enum(schema.enum as [string, ...string[]]);
+    }
+    return z.string();
+  }
+  if (type === "integer") {
+    let numberType = z.number().int();
+    return numberType;
+  }
+  if (type === "number") {
+    return z.number();
+  }
+  if (type === "boolean") {
+    return z.boolean();
+  }
+  if (type === "array" && typeof schema.items === "object" && schema.items !== null) {
+    return z.array(jsonSchemaToZod(schema.items as Record<string, unknown>));
+  }
+  if (type === "object" && typeof schema.properties === "object" && schema.properties !== null) {
+    const shape: Record<string, z.ZodTypeAny> = {};
+    const required = Array.isArray(schema.required) ? (schema.required as string[]) : [];
+    for (const [key, propSchema] of Object.entries(schema.properties as Record<string, unknown>)) {
+      const zodProp = jsonSchemaToZod(propSchema as Record<string, unknown>);
+      shape[key] = required.includes(key) ? zodProp : zodProp.optional();
+    }
+    return z.object(shape);
+  }
+
+  return z.any();
+}
+
+function sanitizeToolName(namespacedName: string): string {
+  return namespacedName.replace(/[.:]/g, "_");
+}
+
+export async function createPluginToolDefinitions(client: PaperclipApiClient): Promise<ToolDefinition[]> {
+  const descriptors = await client.requestJson<Array<{
+    name: string;
+    displayName: string;
+    description: string;
+    parametersSchema: Record<string, unknown>;
+    pluginId: string;
+  }>>("GET", "/plugins/tools").catch(() => []);
+
+  return descriptors.map((desc) => {
+    const toolName = sanitizeToolName(desc.name);
+    const zodSchema = desc.parametersSchema && typeof desc.parametersSchema === "object"
+      ? jsonSchemaToZod(desc.parametersSchema)
+      : z.object({}).passthrough();
+
+    return makeTool(
+      toolName,
+      `[${desc.pluginId}] ${desc.displayName}: ${desc.description}`,
+      zodSchema instanceof z.ZodObject ? (zodSchema as z.ZodObject<z.ZodRawShape>) : z.object({}).passthrough(),
+      async (input) => {
+        const projectId = client.defaults.projectId;
+        if (!projectId) {
+          throw new Error("Paperclip plugin tools require a project context.");
+        }
+        return client.requestJson("POST", "/plugins/tools/execute", {
+          body: {
+            tool: desc.name,
+            parameters: input,
+            runContext: {
+              agentId: client.defaults.agentId,
+              runId: client.defaults.runId,
+              companyId: client.defaults.companyId,
+              projectId,
+            },
+          },
+        });
+      },
+    );
+  });
+}
+
 export function createToolDefinitions(client: PaperclipApiClient): ToolDefinition[] {
   return [
     makeTool(

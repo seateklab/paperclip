@@ -109,6 +109,13 @@ async function requestJson(ctx: PluginContext, config: PluginConfig, path: strin
     },
   });
   const body = await readResponseJson(response);
+  if (response.ok && readNumberAt(body, ["code"]) === 401) {
+    throw new KieApiError(readStringAt(body, ["msg"]) ?? "KieAPI authentication failed", {
+      status: 401,
+      code: "kie_authentication_failed",
+      retryable: false,
+    });
+  }
   if (!response.ok) {
     const providerMessage = readStringAt(body, ["msg"]) ?? readStringAt(body, ["message"]);
     throw new KieApiError(providerMessage ?? `KieAPI request failed (${response.status})`, {

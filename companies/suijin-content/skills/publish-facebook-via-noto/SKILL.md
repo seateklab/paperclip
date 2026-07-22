@@ -20,6 +20,17 @@ executing any publication operation, require all of the following:
 - A local URL is never a reachable attachment representation; it must block
   before execution.
 
+## UTF-8 content preflight
+
+Fetch the saved `facebook-post` document through the transport-safe API path
+required by the `verifying-published-text` skill. On Windows, use the bundled
+UTF-8 API helper rather than a raw Windows PowerShell request. Reject the
+document before approval or Noto execution
+when it contains the Unicode replacement character `�`, mojibake such as
+`Ã`/`Â` sequences, suspicious replacement question marks inside words, or
+missing required post fields. Preserve the exact fetched body for the later
+Facebook readback comparison; do not regenerate it from the issue title.
+
 ## Existing publication reconciliation
 
 Before requesting or executing Noto, search for a successful publication
@@ -149,6 +160,29 @@ assumed provider interface:
 Send no keys beyond those accepted by the discovered schema. If exactly one
 compatible function cannot be selected, or any required mapping is not
 schema-compatible, surface a visible blocker and do not execute.
+
+## Transport and published-content verification
+
+Use `skills/paperclip/scripts/paperclip-plugin-tool.mjs` for every managed
+plugin-tool list or execution request. It calls Paperclip's existing plugin
+dispatcher, builds the authenticated `runContext`, and preserves UTF-8 in both
+request bytes and decoded responses. Never use an unapproved shell HTTP request
+or a direct provider HTTP endpoint for this workflow.
+
+Require a successful publication result with one explicit external post ID and
+one explicit permalink before continuing. Then read back the actual Facebook post
+through a dynamically discovered Noto function whose description and
+schema accept the returned post ID and expose the published body. Compare the
+readback body with the complete approved `facebook-post` document after the
+same transport-safe decoding.
+
+If a compatible readback function is unavailable, the readback body is
+missing, or the published body differs in any character, do not create the
+durable publication artifact and must not mark the topic `done`. Record the
+external post ID in a sanitized durable blocked/manual-correction outcome;
+this is an already-created publication and must not be run again
+automatically. Only after readback equality succeeds may you create the durable
+publication artifact.
 
 ## Result, artifact, and failure handling
 

@@ -1,10 +1,14 @@
 import fs from "node:fs/promises";
+import { existsSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { afterEach, describe, expect, it } from "vitest";
 import { prepareOpenCodeRuntimeConfig } from "./runtime-config.js";
 
 const cleanupPaths = new Set<string>();
+const adapterRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
+const paperclipMcpScript = path.resolve(adapterRoot, "..", "mcp-server", "dist", "stdio.js");
 
 afterEach(async () => {
   await Promise.all(
@@ -31,10 +35,16 @@ async function makeConfigHome(initialConfig?: Record<string, unknown>) {
 }
 
 describe("prepareOpenCodeRuntimeConfig", () => {
-  it("injects an external_directory allow rule by default", async () => {
+  it("injects a schema-valid local Paperclip MCP entry and preserves existing config", async () => {
     const configHome = await makeConfigHome({
       permission: {
         read: "allow",
+      },
+      mcp: {
+        existing: {
+          type: "local",
+          command: ["existing-mcp"],
+        },
       },
       theme: "system",
     });
@@ -52,13 +62,32 @@ describe("prepareOpenCodeRuntimeConfig", () => {
         "utf8",
       ),
     ) as Record<string, unknown>;
+    const expectedMcp: Record<string, unknown> = {
+      existing: {
+        type: "local",
+        command: ["existing-mcp"],
+      },
+    };
+    if (existsSync(paperclipMcpScript)) {
+      expectedMcp.paperclip = {
+        type: "local",
+        command: [process.execPath, paperclipMcpScript],
+      };
+    }
+
     expect(runtimeConfig).toMatchObject({
       theme: "system",
       permission: {
         read: "allow",
         external_directory: "allow",
       },
+      mcp: expectedMcp,
     });
+    if (existsSync(paperclipMcpScript)) {
+      const paperclipMcp = (runtimeConfig.mcp as Record<string, unknown>).paperclip as Record<string, unknown>;
+      expect(paperclipMcp).not.toHaveProperty("args");
+      expect(paperclipMcp).not.toHaveProperty("type", "command-line");
+    }
 
     await prepared.cleanup();
     cleanupPaths.delete(prepared.env.XDG_CONFIG_HOME);

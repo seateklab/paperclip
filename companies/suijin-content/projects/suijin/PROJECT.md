@@ -17,9 +17,10 @@ when Language is omitted, the pipeline uses Vietnamese.
    rationales, and real source URLs.
 2. Task Agent creates one child topic issue per result, reusing an existing
    child whose description contains the exact `Research result: N` marker.
-3. Each topic child enters `in_review` behind a `request_confirmation` gate.
-   Only a trimmed, case-insensitive human comment equal to `Approved`, `Agree`,
-   `Đồng ý`, or `Duyệt` releases it.
+3. Each topic child enters `in_review` with exactly one linked
+   `request_board_approval`. Each approval appears separately in the board
+   Inbox, and only that child's approval with status `approved` releases it.
+   Approval of another topic never releases this child.
 4. Facebook Writer writes the durable `facebook-post` document and assigns
    Image Agent only after UTF-8 readback succeeds.
 5. Image Agent creates exactly one durable attachment and the
@@ -34,7 +35,8 @@ when Language is omitted, the pipeline uses Vietnamese.
 ## Failure ownership
 
 Research failures return to Task Agent. Topic-gate feedback remains with Task
-Agent until an exact approval comment arrives. Writer validation failures
+Agent until the linked per-topic approval is approved or revision handling is
+completed. Writer validation failures
 remain with Facebook Writer. Kie quota, authentication, or guardrail failures
 return to Task Agent; transient generation failures remain with Image Agent.
 Noto setup, Page, approval, and ambiguous publication outcomes remain blocked

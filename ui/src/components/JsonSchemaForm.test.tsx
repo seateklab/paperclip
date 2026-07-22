@@ -3,7 +3,7 @@
 import { act } from "react";
 import { createRoot } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { JsonSchemaForm, getDefaultValues } from "./JsonSchemaForm";
+import { JsonSchemaForm, getDefaultValues, projectValuesToSchema } from "./JsonSchemaForm";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 (globalThis as any).IS_REACT_ACT_ENVIRONMENT = true;
@@ -431,5 +431,103 @@ describe("JsonSchemaForm secret-ref rendering", () => {
     await act(async () => {
       root.unmount();
     });
+  });
+});
+
+describe("projectValuesToSchema", () => {
+  it("removes stale fields and trims URI values for strict object schemas", () => {
+    const schema = {
+      type: "object" as const,
+      properties: {
+        apiBaseUrl: { type: "string" as const, format: "uri" },
+      },
+      required: ["apiBaseUrl"],
+      additionalProperties: false,
+    };
+
+    expect(projectValuesToSchema(schema, {
+      apiBaseUrl: "  https://api.ai.seateklab.vn/  ",
+      devUiUrl: "http://localhost:4173",
+    })).toEqual({
+      apiBaseUrl: "https://api.ai.seateklab.vn/",
+    });
+  });
+
+  it("preserves unknown fields when additional properties are allowed", () => {
+    const schema = {
+      type: "object" as const,
+      properties: { name: { type: "string" as const } },
+      additionalProperties: true,
+    };
+
+    expect(projectValuesToSchema(schema, { name: "Noto", custom: "kept" })).toEqual({
+      name: "Noto",
+      custom: "kept",
+    });
+  });
+
+  it("projects nested objects and arrays using their child schemas", () => {
+    const schema = {
+      type: "object" as const,
+      properties: {
+        nested: {
+          type: "object" as const,
+          properties: { keep: { type: "string" as const } },
+          additionalProperties: false,
+        },
+        items: {
+          type: "array" as const,
+          items: {
+            type: "object" as const,
+            properties: { name: { type: "string" as const } },
+            additionalProperties: false,
+          },
+        },
+      },
+      additionalProperties: false,
+    };
+
+    expect(projectValuesToSchema(schema, {
+      nested: { keep: "yes", remove: "no" },
+      items: [{ name: "one", remove: true }],
+      remove: "root",
+    })).toEqual({
+      nested: { keep: "yes" },
+      items: [{ name: "one" }],
+    });
+  });
+});
+
+describe("JsonSchemaForm validation errors", () => {
+  it("renders root-level and field-level errors", async () => {
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    const root = createRoot(container);
+
+    await act(async () => {
+      root.render(
+        <JsonSchemaForm
+          schema={{
+            type: "object",
+            properties: { apiBaseUrl: { type: "string" } },
+          }}
+          values={{ apiBaseUrl: "" }}
+          errors={{
+            "/": "Unexpected property: devUiUrl",
+            "/apiBaseUrl": "must match format uri",
+          }}
+          onChange={() => {}}
+        />,
+      );
+    });
+
+    expect(container.querySelector('[data-testid="json-schema-root-error"]')?.textContent)
+      .toContain("devUiUrl");
+    expect(container.textContent).toContain("must match format uri");
+
+    await act(async () => {
+      root.unmount();
+    });
+    container.remove();
   });
 });

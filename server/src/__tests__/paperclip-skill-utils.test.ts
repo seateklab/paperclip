@@ -105,6 +105,22 @@ describe("paperclip skill utils", () => {
     expect(helperBody).toContain('application/json; charset=utf-8');
   });
 
+  it("bundles and documents the generic managed plugin-tool helper", async () => {
+    const skillBody = await fs.readFile(path.resolve("skills/paperclip/SKILL.md"), "utf8");
+    const helperBody = await fs.readFile(
+      path.resolve("skills/paperclip/scripts/paperclip-plugin-tool.mjs"),
+      "utf8",
+    );
+
+    expect(skillBody).toContain("paperclip-plugin-tool.mjs");
+    expect(skillBody).toContain("/api/plugins/tools");
+    expect(skillBody).toContain("/api/plugins/tools/execute");
+    expect(skillBody).toContain("do not retry");
+    expect(helperBody).toContain('Buffer.from(JSON.stringify(body), "utf8")');
+    expect(helperBody).toContain('Buffer.concat(chunks).toString("utf8")');
+    expect(helperBody).toContain("runContext");
+  });
+
   it.runIf(process.platform === "win32")(
     "preserves Vietnamese JSON through the bundled Windows PowerShell helper",
     async () => {

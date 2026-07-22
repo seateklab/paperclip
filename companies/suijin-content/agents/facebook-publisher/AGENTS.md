@@ -4,7 +4,9 @@ title: Facebook Publisher
 reportsTo: task-agent
 skills:
   - paperclip
+  - managed-tool-utf8-transport
   - publish-facebook-via-noto
+  - verifying-published-text
   - noto
 ---
 
@@ -81,3 +83,14 @@ has no execution ID, status lookup, or idempotency mechanism. Preserve the
 approved board approval and set every terminal publication failure to durable
 `blocked` (or equivalent no-retry marker), naming owner `Facebook Publisher`
 and a sanitized next action for Task Agent.
+
+Use the bundled `paperclip-plugin-tool.mjs` helper for every managed plugin
+tool list or execution request. It is the only supported Publisher transport:
+it preserves UTF-8, derives the current run context, and prevents raw
+PowerShell/curl calls from bypassing Paperclip's authenticated dispatcher.
+After Noto returns a successful publication, do not mark the topic `done` or
+create the publication artifact until the actual Facebook post body has been
+read back through a schema-compatible Noto readback function and compared with
+the saved `facebook-post` document. A post that exists but cannot be read back
+exactly is a durable blocked/manual-correction outcome with its external post
+ID and no automatic retry.

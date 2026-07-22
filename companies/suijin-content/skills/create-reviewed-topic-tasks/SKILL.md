@@ -1,6 +1,6 @@
 ---
 name: create-reviewed-topic-tasks
-description: Turn numbered research results into human-approved topic children
+description: Turn numbered research results into independently approved topic children
 ---
 
 # Create Reviewed Topic Tasks
@@ -24,27 +24,45 @@ For each numbered result `N`, perform these steps in order:
    `Research result:`, `Topic:`, `Rationale:`, `Language:`, `Target Facebook
    Page:`, and `Sources:`. Resolve Language from the root and default it to
    Vietnamese only when omitted.
-3. Create the child interaction before changing its status. The interaction
-   has `kind: "request_confirmation"`, `continuationPolicy: "none"`, and
-   payload `{version:1,prompt,acceptLabel:"Approve topic",rejectLabel:"Request changes",supersedeOnUserComment:true}`.
-   Use idempotency key `suijin-topic-review:<child-id>:initial` for the first
-   gate.
-4. Only after interaction creation, patch the child to `in_review` and
-   comment the next action. The gate accepts only a human-authored comment
-   whose trimmed body, compared case-insensitively, equals exactly one of
-   `Approved`, `Agree`, `Đồng ý`, or `Duyệt`.
+3. List approvals linked to that child. Reuse the existing topic approval when
+   present. If none exists, call the existing `paperclipCreateApproval` tool
+   exactly once with `type: "request_board_approval"`, the current Task Agent
+   as `requestedByAgentId`, and `issueIds: [childId]`. Keep the payload concise
+   and decision-ready; include the topic, rationale, language, target Page,
+   source URLs, and the recommended action to approve that one topic for
+   Facebook Writer.
+4. Keep the child in `in_review` while its approval is `pending` or
+   `revision_requested`. The first-class approval is the only topic gate. Do
+   not create an issue-thread interaction, do not use a comment as approval,
+   and do not release the child because a parent or sibling topic was approved.
+   After the approval exists, patch the child to `in_review` before leaving the
+   gate waiting.
+5. Comment the child's next action with a link to its individual approval. The
+   root comment may summarize the count, but every child must have its own
+   Inbox item and its own decision.
 
-## Feedback wake
+## Approval wake
 
-On `issue_commented`, fetch the exact wake comment and verify that it is
-human-authored. An exact accepted phrase patches the child to `todo` and
-assigns `facebook-writer` in one update. Any other comment is feedback: apply
-clear requested edits, create a fresh request confirmation, and keep the
-child `in_review`. The renewed gate uses idempotency key
-`suijin-topic-review:<child-id>:<wake-comment-id>`. Ambiguous feedback gets a
-clarifying comment plus a renewed interaction. Set `supersedeOnUserComment:
-true` so the existing pending request confirmation is superseded by the human
-comment; do not poll interactions or manufacture approval.
+When awakened with `PAPERCLIP_APPROVAL_ID` or
+`PAPERCLIP_APPROVAL_STATUS`, fetch the approval through the existing
+`paperclipGetApproval` tool. Require all of the following before releasing
+work:
+
+- the approval ID is the approval named by the wake context;
+- its type is `request_board_approval`;
+- it is linked to exactly one expected topic child;
+- its status is exactly `approved`.
+
+Only after those checks pass may Task Agent patch that matching child to `todo`
+and assign `facebook-writer` in one update. Add a handoff comment naming the
+approved child and its next action. Sibling children must not change.
+
+Pending, rejected, revision-requested, missing, mismatched, duplicate, or
+ambiguous approvals remain visible blockers. Keep the affected child in
+`in_review`, name the responsible owner and concrete next action, and never
+infer approval from a comment or from another topic's approval. Reuse the same
+approval's revision/resubmit path when available; do not create a second active
+topic approval for the same child.
 
 After all children and gates are durably created, comment the count and next
 board action, then complete the parent root issue only when every child has a

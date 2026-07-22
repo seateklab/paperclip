@@ -14,9 +14,9 @@ Board root issue
       v
 Task Agent -> Research Agent -> research-results
       |
-      +-> one topic child per result -> request_confirmation -> human comment
+      +-> one topic child per result -> one board approval per child
                                               |
-                            Approved / Agree / Đồng ý / Duyệt
+                              separate Inbox item for each topic
                                               v
                                    Facebook Writer -> facebook-post
                                               v
@@ -32,10 +32,12 @@ Task Agent -> Research Agent -> research-results
 The root issue must include `Research request:`, `Language:`, and `Target
 Facebook Page:`. Language inherits from the issue and defaults to Vietnamese
 when omitted. The Research Agent creates five results by default. The Task
-Agent creates one `in_review` child per result and reuses an existing child
-identified by `Research result: N` rather than duplicating it. A human releases
-a topic only with a trimmed, case-insensitive exact comment of `Approved`,
-`Agree`, `Đồng ý`, or `Duyệt`.
+Agent creates one `in_review` child and exactly one linked
+`request_board_approval` per result, reusing an existing child identified by
+`Research result: N` rather than duplicating it. Each approval appears as its
+own Inbox item. The board must approve each topic independently; approving one
+child releases only that child to Facebook Writer, while every other child
+remains in review.
 
 The Writer stores `facebook-post`, then Image creates one durable Kie-backed
 Paperclip attachment and `facebook-image` artifact. Publisher verifies the
@@ -56,8 +58,13 @@ external post ID, then closes the topic.
   representation, or any unknown required field blocks safely before
   execution.
 - Final board approval is fetched and verified before any external mutation.
+- All managed plugin-tool calls use the bundled UTF-8-safe
+  `paperclip-plugin-tool.mjs` helper rather than raw PowerShell/curl requests.
 - Publication is accepted only with one returned external ID and one returned
-  permalink, which are recorded in the Noto artifact.
+  permalink, followed by an actual Facebook post-body readback that exactly
+  matches `facebook-post`.
+- A missing readback capability or body mismatch creates a durable blocked
+  manual-correction outcome and never triggers a duplicate retry.
 - No production Page is used for smoke tests.
 
 ## Organization
@@ -68,7 +75,7 @@ external post ID, then closes the topic.
 | `research-agent` | Research Agent | Task Agent | `paperclip`, `research-facebook-topics`, `agent-browser` | Searches current sources and writes results |
 | `facebook-writer` | Facebook Writer | Task Agent | `paperclip`, `write-facebook-post`, `verifying-published-text` | Writes and verifies the post document |
 | `image-agent` | Image Agent | Task Agent | `paperclip`, `kie-image-generation` | Generates the durable image artifact |
-| `facebook-publisher` | Facebook Publisher | Task Agent | `paperclip`, `publish-facebook-via-noto`, `noto` | Publishes only after final approval |
+| `facebook-publisher` | Facebook Publisher | Task Agent | `paperclip`, `managed-tool-utf8-transport`, `publish-facebook-via-noto`, `verifying-published-text`, `noto` | Publishes only after final approval and published-body readback |
 
 ## Included content
 
@@ -77,7 +84,8 @@ external post ID, then closes the topic.
   `write-facebook-post`, `publish-facebook-via-noto`, and the verified
   `verifying-published-text` skill.
 - Referenced runtime skills: `paperclip`, `agent-browser`,
-  `kie-image-generation`, and the externally installed `noto` skill.
+  `kie-image-generation`, the bundled `managed-tool-utf8-transport` skill,
+  and the externally installed `noto` skill.
 
 ## Prerequisites and setup
 
@@ -86,10 +94,12 @@ external post ID, then closes the topic.
    secret reference.
 3. Install the external Noto plugin and assign its managed `noto` skill to
    Facebook Publisher.
-4. Configure Noto credentials and Page access outside this package.
-5. Replace the starter Page placeholder with a dedicated Noto-recognized test
+4. Install the bundled `managed-tool-utf8-transport` skill for the company and
+   attach it to Facebook Publisher.
+5. Configure Noto credentials and Page access outside this package.
+6. Replace the starter Page placeholder with a dedicated Noto-recognized test
    Page identifier.
-6. Run the pipeline. Do not use a production Page for smoke verification.
+7. Run the pipeline. Do not use a production Page for smoke verification.
 
 No adapter is pinned. The package intentionally omits unknown Noto and Kie
 configuration fields; those are managed by Paperclip and their plugins.

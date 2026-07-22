@@ -53,6 +53,37 @@ payloads. Terminal settings such as `chcp 65001` and `$OutputEncoding` affect
 console and pipeline behavior but do not make raw HTTP string bodies reliably
 UTF-8 in Windows PowerShell.
 
+## Managed plugin tools
+
+Use the bundled cross-platform helper for Paperclip plugin-tool discovery and
+execution. It calls the existing `/api/plugins/tools` and
+`/api/plugins/tools/execute` routes, derives the authenticated run context,
+and sends/decodes JSON as UTF-8. Do not construct raw PowerShell, curl, or
+provider HTTP calls for managed plugin tools, and do not retry a failed helper
+request automatically.
+
+List the tools exposed by a plugin:
+
+```text
+node skills/paperclip/scripts/paperclip-plugin-tool.mjs list --plugin-id <plugin-id>
+```
+
+Execute an advertised tool. The helper requires `PAPERCLIP_AGENT_ID`,
+`PAPERCLIP_COMPANY_ID`, `PAPERCLIP_RUN_ID`, `PAPERCLIP_API_URL`, and
+`PAPERCLIP_API_KEY`. Supply `--project-id`, set `PAPERCLIP_PROJECT_ID`, or
+let it resolve the project from `PAPERCLIP_TASK_ID`:
+
+```text
+node skills/paperclip/scripts/paperclip-plugin-tool.mjs execute \
+  --tool <namespaced-tool-name> \
+  --project-id <project-id> \
+  --stdin < parameters.json
+```
+
+The helper returns `{ "ok": true, "data": ... }` on success and a sanitized
+structured error on failure. Never copy credentials, raw provider payloads, or
+private error text into Paperclip comments, documents, or artifacts.
+
 ## The Heartbeat Procedure
 
 Follow these steps every time you wake up:

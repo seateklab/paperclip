@@ -23,10 +23,14 @@ import { Tabs, TabsContent } from "@/components/ui/tabs";
 import { PageTabBar } from "@/components/PageTabBar";
 import {
   JsonSchemaForm,
+  projectValuesToSchema,
   validateJsonSchemaForm,
-  getDefaultValues,
   type JsonSchemaNode,
 } from "@/components/JsonSchemaForm";
+import {
+  buildPluginConfigFormValues,
+  getPluginConfigErrorState,
+} from "@/lib/plugin-config-form";
 
 /**
  * PluginSettings page component.
@@ -990,10 +994,8 @@ function PluginConfigForm({
   const queryClient = useQueryClient();
 
   // Form values: start with saved values, fall back to schema defaults
-  const [values, setValues] = useState<Record<string, unknown>>(() => ({
-    ...getDefaultValues(schema),
-    ...(initialValues ?? {}),
-  }));
+  const initialFormValues = buildPluginConfigFormValues(schema, initialValues);
+  const [values, setValues] = useState<Record<string, unknown>>(() => initialFormValues);
 
   // Sync when saved config loads asynchronously — only on first load so we
   // don't overwrite in-progress user edits if the query refetches (e.g. on
@@ -1002,10 +1004,7 @@ function PluginConfigForm({
   useEffect(() => {
     if (initialValues && !hasHydratedRef.current) {
       hasHydratedRef.current = true;
-      setValues({
-        ...getDefaultValues(schema),
-        ...initialValues,
-      });
+      setValues(buildPluginConfigFormValues(schema, initialValues));
     }
   }, [initialValues, schema]);
 
@@ -1014,10 +1013,7 @@ function PluginConfigForm({
   const [testResult, setTestResult] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
   // Dirty tracking: compare against initial values
-  const isDirty = JSON.stringify(values) !== JSON.stringify({
-    ...getDefaultValues(schema),
-    ...(initialValues ?? {}),
-  });
+  const isDirty = JSON.stringify(values) !== JSON.stringify(initialFormValues);
 
   // Save mutation
   const saveMutation = useMutation({
@@ -1037,7 +1033,9 @@ function PluginConfigForm({
       setTimeout(() => setSaveMessage(null), 3000);
     },
     onError: (err: Error) => {
-      setSaveMessage({ type: "error", text: err.message || "Failed to save configuration." });
+      const errorState = getPluginConfigErrorState(err);
+      setErrors(errorState.fieldErrors);
+      setSaveMessage({ type: "error", text: errorState.summary || "Failed to save configuration." });
     },
   });
 
@@ -1053,7 +1051,9 @@ function PluginConfigForm({
       }
     },
     onError: (err: Error) => {
-      setTestResult({ type: "error", text: err.message || "Configuration test failed." });
+      const errorState = getPluginConfigErrorState(err);
+      setErrors(errorState.fieldErrors);
+      setTestResult({ type: "error", text: errorState.summary || "Configuration test failed." });
     },
   });
 
@@ -1065,26 +1065,28 @@ function PluginConfigForm({
   }, []);
 
   const handleSave = useCallback(() => {
+    const configJson = projectValuesToSchema(schema, values);
     // Validate before saving
-    const validationErrors = validateJsonSchemaForm(schema, values);
+    const validationErrors = validateJsonSchemaForm(schema, configJson);
     if (Object.keys(validationErrors).length > 0) {
       setErrors(validationErrors);
       return;
     }
     setErrors({});
-    saveMutation.mutate(values);
+    saveMutation.mutate(configJson);
   }, [schema, values, saveMutation]);
 
   const handleTestConnection = useCallback(() => {
+    const configJson = projectValuesToSchema(schema, values);
     // Validate before testing
-    const validationErrors = validateJsonSchemaForm(schema, values);
+    const validationErrors = validateJsonSchemaForm(schema, configJson);
     if (Object.keys(validationErrors).length > 0) {
       setErrors(validationErrors);
       return;
     }
     setErrors({});
     setTestResult(null);
-    testMutation.mutate(values);
+    testMutation.mutate(configJson);
   }, [schema, values, testMutation]);
 
   if (isLoading) {

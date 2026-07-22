@@ -328,6 +328,62 @@ export function getDefaultValues(schema: JsonSchemaNode): Record<string, unknown
   return result;
 }
 
+/**
+ * Project form values onto the current schema before submitting them.
+ *
+ * This prevents stale values from an older plugin schema from being sent back
+ * when the current schema explicitly disallows additional properties. Schemas
+ * that allow additional properties retain them so generic plugin behavior is
+ * not narrowed by the form host.
+ */
+export function projectValuesToSchema(
+  schema: JsonSchemaNode,
+  values: Record<string, unknown>,
+): Record<string, unknown> {
+  const projected = projectSchemaValue(schema, values);
+  return isRecord(projected) ? projected : values;
+}
+
+function projectSchemaValue(schema: JsonSchemaNode, value: unknown): unknown {
+  const type = resolveType(schema);
+
+  if (type === "string" && schema.format === "uri" && typeof value === "string") {
+    return value.trim();
+  }
+
+  if (type === "object" && isRecord(value)) {
+    const properties = schema.properties ?? {};
+    const result: Record<string, unknown> = {};
+
+    for (const [key, propertySchema] of Object.entries(properties)) {
+      if (Object.prototype.hasOwnProperty.call(value, key)) {
+        result[key] = projectSchemaValue(propertySchema, value[key]);
+      }
+    }
+
+    if (schema.additionalProperties !== false) {
+      for (const [key, entry] of Object.entries(value)) {
+        if (Object.prototype.hasOwnProperty.call(properties, key)) continue;
+        result[key] = schema.additionalProperties && typeof schema.additionalProperties === "object"
+          ? projectSchemaValue(schema.additionalProperties, entry)
+          : entry;
+      }
+    }
+
+    return result;
+  }
+
+  if (type === "array" && Array.isArray(value) && schema.items) {
+    return value.map((entry) => projectSchemaValue(schema.items as JsonSchemaNode, entry));
+  }
+
+  return value;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
 // ---------------------------------------------------------------------------
 // Internal Components
 // ---------------------------------------------------------------------------
@@ -1276,6 +1332,14 @@ export function JsonSchemaForm({
 
   return (
     <div className={cn("space-y-6", className)}>
+      {errors["/"] && (
+        <p
+          data-testid="json-schema-root-error"
+          className="text-sm font-medium text-destructive"
+        >
+          {errors["/"]}
+        </p>
+      )}
       {essentials.map(renderField)}
 
       {hasAdvanced && (

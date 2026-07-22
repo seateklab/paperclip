@@ -1,6 +1,8 @@
 # Tasks Index
 
 ## In Progress
+- [TASK010](TASK010-noto-connection-plugin.md) - Noto Connection external plugin and live verification
+- [TASK012](TASK012-suijin-workflow-hardening.md) - Suijin fresh-issue workflow hardening
 
 - [TASK006](TASK006-autonomous-kie-image-plugin.md) - Kie secret-resolution MVP
   implementation
@@ -22,6 +24,7 @@
 | [TASK005](TASK005-memory-bank-and-package-remediation.md) | complete | passed | not_required |
 | [TASK008](TASK008-windows-powershell-utf8-json.md) | complete | passed | not_required |
 | [TASK009](TASK009-verified-article-publishing.md) | complete | passed | not_required |
+| [TASK011](TASK011-suijin-content-company.md) | complete | passed | pending_user |
 
 ## Abandoned
 

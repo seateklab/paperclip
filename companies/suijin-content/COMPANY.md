@@ -31,10 +31,11 @@ these literal labels:
 - `Target Facebook Page:` - the exact Page recognized by the external Noto skill.
 
 The Research Agent writes one `research-results` document containing numbered
-results. The Task Agent creates one child issue per result. Each child is put
-in `in_review` behind a human `request_confirmation` gate. An exact standalone
-`Approved`, `Agree`, `Đồng ý`, or `Duyệt` comment releases that topic to the
-Facebook Writer.
+results. The Task Agent creates one child issue per result and one independent
+`request_board_approval` linked to that child. Each approval appears as a
+separate Inbox item. The child remains in `in_review` until its own approval is
+approved; approving one topic never releases another topic to the Facebook
+Writer.
 
 The Facebook Writer saves `facebook-post` and hands the durable issue to the
 Image Agent. The Image Agent creates one durable Kie-backed attachment and a

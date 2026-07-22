@@ -53,3 +53,15 @@ Do not reject a document or post merely because it contains `?`.
 
 Do not try to reconstruct an already corrupted document or post by guessing
 which letters replaced `?`. Use the intact outline and sources to rewrite it.
+
+## After external publication
+
+For a Facebook publication, read the actual Facebook post through the
+schema-compatible Noto readback operation using the transport-safe managed
+plugin-tool helper. Compare the published body, hook, closing, Unicode
+characters, and source links with the approved `facebook-post` document.
+
+If readback is unavailable, the body is missing, or any character differs,
+record the returned external post ID as a durable blocked/manual-correction
+outcome. The Publisher must not create a publication artifact, must not mark
+the issue `done`, and must not automatically run the publication again.

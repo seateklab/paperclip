@@ -1,5 +1,28 @@
 # Progress
 
+## TASK010 Noto Connection external plugin (2026-07-20)
+
+The external `@seatek/noto` worker plugin was implemented and validated
+against the deployed Noto connector API. It uses `/v1/connectors/connections`,
+connection detail, tools, and execution endpoints; normalizes the tested
+response envelopes; resolves company-scoped secrets; redacts execution
+responses; and records safe pre-call/completion audits.
+
+Fresh package checks passed: typecheck, 6 test files/27 tests, and build. The
+running Paperclip plugin was explicitly uninstalled/reinstalled from
+`D:/seatek_tasks/Plugins/noto` without purging configuration. Health is ready,
+all diagnostics pass, four tools are registered, and the Suijin Content
+company configuration has the required credential reference, client ID,
+workspace ID, and app ID. Live read-only Noto requests passed: discovery 200,
+detail 200, tools 200 with 43 functions, and
+`FACEBOOK_GET_CURRENT_USER` execution 201 with root success.
+
+Remaining: make `appId` required because the current Noto contract requires
+`x-app-id`, then rebuild and retest. Paperclip's plugin tool route rejected
+the available historical run context with a run/company ownership 403 before
+the worker was invoked; no new heartbeat was created solely for testing.
+No secret values or private provider response data were recorded.
+
 ## Rollback checkpoint (2026-07-16)
 
 The most recent generic Phase 0 host work was rolled back at the user's
@@ -272,3 +295,48 @@ handoff. The Writer finalization process stalled after persistence, so its run
 and automatic Writer continuations were cancelled without regenerating; the
 existing artifact was handed to Reviewer and WRIA-9 is in_review. Forced-limit
 smoke remains deferred.
+
+## 2026-07-22 reusable managed-tool UTF-8 guard
+
+The latest Suijin/Facebook investigation is now recorded as a reusable
+prevention rule. The bundled catalog skill
+`paperclipai/bundled/software-development/managed-tool-utf8-transport` is
+installed for Suijin Content and attached to Facebook Publisher. It requires a
+verified BOM-less UTF-8 parameters file and
+`paperclip-plugin-tool.mjs --parameters-file` for non-ASCII managed-tool JSON;
+PowerShell string pipelines and raw provider HTTP are prohibited. Preflight
+must reject U+FFFD, mojibake, and unexpected `?` and stop before external
+mutation if transport safety is uncertain.
+
+The key lesson is that a correct saved document or post-publication readback
+does not prove the outbound process boundary was safe. Verification can detect
+an already-created bad post; only pre-mutation byte validation prevents it.
+Image/public-URL upload concerns are separate and were intentionally not
+changed. Catalog validation, catalog tests, the real helper Vietnamese
+round-trip test, the Suijin contract test, and `git diff --check` passed.
+
+## 2026-07-22 runtime and plugin-config review additions
+
+The repository review also captured four core hardening details that were not
+previously summarized in the memory bank:
+
+- The MCP server discovers registered plugin tools at startup, converts their
+  JSON Schemas into MCP/Zod input shapes, and executes through the existing
+  `/api/plugins/tools/execute` route. A real project ID is mandatory; company
+  IDs are never valid project-context fallbacks.
+- OpenCode local runtime preparation preserves existing MCP configuration and
+  injects the Paperclip MCP server only when the sibling built entry exists,
+  keeping clean checkouts from referencing a nonexistent `dist/stdio.js`.
+- Plugin config validation/UI now surfaces unexpected properties, projects
+  form values onto strict schemas before save/test, trims URI values, retains
+  allowed additional properties, and displays root-level errors.
+- Kie payload-level authentication failures are classified as non-retryable,
+  and deferred run-authored comment wakes no longer reopen or continue closed
+  issues.
+
+The focused Node contract/helper checks and direct MCP, OpenCode, UI,
+validator, catalog, and Kie Vitest suites passed during this review. The
+repository pnpm runner still hits its no-TTY modules-purge guard, while broad
+Windows suites remain limited by symlink and default Paperclip workspace
+permissions; no dependency installation or destructive module cleanup was
+performed.

@@ -4,9 +4,14 @@ import fs from "node:fs";
 import path from "node:path";
 
 const packageRoot = path.resolve(import.meta.dirname, "..");
+const repositoryRoot = path.resolve(packageRoot, "..", "..");
 
 function read(relativePath) {
-  return fs.readFileSync(path.join(packageRoot, relativePath), "utf8");
+  return fs.readFileSync(path.join(packageRoot, relativePath), "utf8").replace(/\r\n/g, "\n");
+}
+
+function readRepository(relativePath) {
+  return fs.readFileSync(path.join(repositoryRoot, relativePath), "utf8").replace(/\r\n/g, "\n");
 }
 
 function assertOrdered(text, markers) {
@@ -35,6 +40,9 @@ test("Suijin package declares the complete approval-gated Facebook pipeline", ()
   const writerAgent = read("agents/facebook-writer/AGENTS.md");
   const imageAgent = read("agents/image-agent/AGENTS.md");
   const publisherAgent = read("agents/facebook-publisher/AGENTS.md");
+  const transportSkill = readRepository(
+    "packages/skills-catalog/catalog/bundled/software-development/managed-tool-utf8-transport/SKILL.md",
+  );
   const researchSkill = read("skills/research-facebook-topics/SKILL.md");
   const taskSkill = read("skills/create-reviewed-topic-tasks/SKILL.md");
   const writerSkill = read("skills/write-facebook-post/SKILL.md");
@@ -51,6 +59,7 @@ test("Suijin package declares the complete approval-gated Facebook pipeline", ()
     writerAgent,
     imageAgent,
     publisherAgent,
+    transportSkill,
     researchSkill,
     taskSkill,
     writerSkill,
@@ -95,10 +104,18 @@ test("Suijin package declares the complete approval-gated Facebook pipeline", ()
   assertOrdered(researchAgent, ["- paperclip", "- research-facebook-topics", "- agent-browser"]);
   assertOrdered(writerAgent, ["- paperclip", "- write-facebook-post", "- verifying-published-text"]);
   assertOrdered(imageAgent, ["- paperclip", "- kie-image-generation"]);
-  assertOrdered(publisherAgent, ["- paperclip", "- publish-facebook-via-noto", "- noto"]);
+  assertOrdered(publisherAgent, [
+    "- paperclip",
+    "- managed-tool-utf8-transport",
+    "- publish-facebook-via-noto",
+    "- noto",
+  ]);
 
   assert.match(project, /name:\s*Suijin/);
   assert.match(project, /owner:\s*task-agent/);
+  assert.match(company, /one independent[\s\S]*request_board_approval[\s\S]*separate Inbox item/);
+  assert.match(project, /each approval appears separately[\s\S]*Inbox/i);
+  assert.match(read("README.md"), /exactly one linked[\s\S]*request_board_approval[\s\S]*per result/);
   assert.match(starterTask, /assignee:\s*research-agent/);
   assert.match(starterTask, /project:\s*suijin/);
 
@@ -110,66 +127,60 @@ test("Suijin package declares the complete approval-gated Facebook pipeline", ()
   assert.match(researchSkill, /2[–-]6|2 to 6|six/i);
   assert.doesNotMatch(researchSkill, /hard-coded topic|fixed topic|default topic/i);
 
-  assert.match(taskSkill, /request_confirmation/);
+  assert.match(taskSkill, /request_board_approval/);
+  assert.match(taskSkill, /paperclipCreateApproval/);
+  assert.match(taskSkill, /issueIds[\s\S]*child/);
+  assert.match(taskSkill, /exactly one[\s\S]*approval/);
+  assert.match(taskSkill, /PAPERCLIP_APPROVAL_ID/);
+  assert.match(taskSkill, /status is exactly `approved`/);
+  assert.doesNotMatch(taskSkill, /request_confirmation/);
   assertOrdered(topicSkill, [
     "task-agent",
-    "request_confirmation",
+    "request_board_approval",
     "in_review",
     "facebook-writer",
   ]);
   assert.match(taskSkill, /resolve Task Agent's assigned agent ID in[\s\S]*`assigneeAgentId`/);
-  assert.match(taskSkill, /Create the child interaction before changing its status/);
-  assert.match(taskSkill, /idempotency key `suijin-topic-review:<child-id>:initial`/);
-  assert.match(
-    taskSkill,
-    /only a human-authored comment[\s\S]*equals exactly one of[\s\S]*`Approved`, `Agree`, `Đồng ý`, or `Duyệt`/,
-  );
-  assert.match(taskSkill, /Any other comment is feedback[\s\S]*keep the\s+child\s+`in_review`/);
-  const initialTopicGate = taskSkill.split("## Feedback wake", 1)[0];
-  assert.doesNotMatch(initialTopicGate, /facebook-writer/);
-  assert.match(taskSkill, /supersedeOnUserComment:\s*true/);
-  assert.match(taskSkill, /continuationPolicy:\s*["']none["']/);
+  assert.match(taskSkill, /List approvals linked to that child/);
+  assert.match(taskSkill, /requestedByAgentId/);
+  assert.match(taskSkill, /issueIds:\s*\[childId\]/);
+  assert.match(taskSkill, /PAPERCLIP_APPROVAL_STATUS/);
+  assert.match(taskSkill, /sibling children must not change/i);
   assert.match(taskSkill, /in_review/);
-  for (const phrase of ["Approved", "Agree", "Đồng ý", "Duyệt"]) {
-    assert.ok(taskSkill.includes(phrase), `missing approval phrase: ${phrase}`);
-  }
   assertOrdered(taskSkill, ["Reuse", "never\n   create a second", "Create unmatched"]);
 
   assert.match(writerSkill, /facebook-post/);
   assert.match(writerSkill, /Language/);
   assert.match(writerSkill, /Vietnamese/);
-  assert.match(writerSkill, /request_confirmation/);
-  assert.doesNotMatch(writerSkill, /latest human-authored comment/);
-  assert.match(writerSkill, /actual latest comment in\s+chronological order/);
-  assert.match(writerSkill, /That latest comment itself must be human-authored/);
-  assert.match(writerSkill, /(?:its )?trimmed body is exactly Approved, Agree, Đồng ý, or Duyệt, case-insensitively/);
-  assert.match(writerSkill, /actual latest comment is agent-authored[\s\S]*earlier human comment says Approved/);
-  assert.match(writerSkill, /missing, pending, rejected, ambiguous, or superseded\s+without a fresh\s+approval/);
+  assert.match(writerSkill, /paperclipListIssueApprovals/);
+  assert.match(writerSkill, /paperclipGetApproval/);
+  assert.match(writerSkill, /request_board_approval/);
+  assert.match(writerSkill, /status\s+to be exactly `approved`/);
+  assert.doesNotMatch(writerSkill, /request_confirmation/);
+  assert.match(writerSkill, /duplicate/);
   assert.match(writerSkill, /Missing or ambiguous topic-child fields/);
   assert.match(writerSkill, /leave the child in_review/);
-  assert.match(writerSkill, /A Task Agent handoff comment alone is not\s+approval/);
-  assert.match(writerSkill, /Do not create\s+or overwrite facebook-post and do not assign Image Agent/);
+  assert.match(writerSkill, /approval of another topic never authorizes\s+this\s+child/i);
+  assert.match(writerSkill, /Do not create or overwrite\s+facebook-post/);
   assertOrdered(writerSkill, [
     "## Topic gate preflight",
-    "Before writing, fetch the topic child's interactions and comments.",
-    "request_confirmation interaction",
-    "actual latest comment in",
+    "paperclipListIssueApprovals",
+    "paperclipGetApproval",
     "Only after this preflight passes",
     "Write one concise Markdown document keyed `facebook-post`",
     /Only after readback succeeds should\s+Facebook Writer comment the handoff and assign Image Agent/,
   ]);
-  assert.match(writerAgent, /A Task Agent handoff comment alone is not approval/);
-  assert.match(writerAgent, /fetch the topic child's interactions and comments/);
-  assert.match(writerAgent, /request_confirmation interaction/);
-  assert.doesNotMatch(writerAgent, /latest human-authored comment/);
-  assert.match(writerAgent, /actual latest comment in\s+chronological order/);
-  assert.match(writerAgent, /That latest comment itself must be human-authored/);
-  assert.match(writerAgent, /visibly block with the owner and next\s+action/);
-  assert.match(writerAgent, /leave the child in_review/);
-  assert.match(writerAgent, /do not write, reassign, continue, or\s+assign Image Agent/);
+  assert.match(writerAgent, /paperclipListIssueApprovals/);
+  assert.match(writerAgent, /paperclipGetApproval/);
+  assert.match(writerAgent, /request_board_approval/);
+  assert.doesNotMatch(writerAgent, /request_confirmation/);
+  assert.match(writerAgent, /approval of another topic never authorizes\s+this\s+child/i);
+  assert.match(writerAgent, /visibly blocks/);
+  assert.match(writerAgent, /leaves the child in_review/);
+  assert.match(writerAgent, /prevents writing, reassignment, continuation, or\s+assignment of Image Agent/);
   assertOrdered(writerAgent, [
     "Before reading or writing",
-    "request_confirmation interaction",
+    "paperclipListIssueApprovals",
     "visibly block",
     "Only after that preflight passes",
     "document keyed `facebook-post`",
@@ -251,6 +262,9 @@ test("Suijin package declares the complete approval-gated Facebook pipeline", ()
   assert.match(unicodeSkill, /`facebook-post`/);
   assert.match(unicodeSkill, /hook, body, closing/);
   assert.match(unicodeSkill, /every source link/);
+  assert.match(unicodeSkill, /After external publication/);
+  assert.match(unicodeSkill, /actual Facebook post/);
+  assert.match(unicodeSkill, /must not create a publication artifact/);
   assertOrdered(publisherSkill, [
     "inputSchema",
     "execute_connection_function",
@@ -272,6 +286,41 @@ test("Suijin package declares the complete approval-gated Facebook pipeline", ()
     "ambiguous",
     /never retried/,
   ]);
+
+  assertOrdered(publisherAgent, [
+    "- publish-facebook-via-noto",
+    "- verifying-published-text",
+    "Publisher is invoked",
+  ]);
+  for (const marker of [
+    "paperclip-plugin-tool.mjs",
+    "actual Facebook post",
+    "readback",
+    "published body",
+    "manual-correction",
+    "must not mark the topic `done`",
+  ]) {
+    assert.ok(publisherSkill.includes(marker), `missing Publisher verification marker: ${marker}`);
+  }
+  assertOrdered(publisherSkill, [
+    "Require a successful publication result",
+    "read back the actual Facebook post",
+    /create the\s+durable publication\s+artifact/i,
+  ]);
+  assertNotPresent(publisherSkill, [
+    "Invoke-RestMethod",
+    "curl",
+    "graph.facebook.com",
+  ]);
+
+  assert.match(publisherAgent, /managed-tool-utf8-transport/);
+  assert.match(transportSkill, /Use when.*non-ASCII.*managed.*tool/i);
+  assert.match(transportSkill, /BOM-less UTF-8/);
+  assert.match(transportSkill, /--parameters-file/);
+  assert.match(transportSkill, /WriteAllText/);
+  assert.match(transportSkill, /\$json \| node/);
+  assert.match(transportSkill, /stop|block/i);
+  assert.match(read("README.md"), /managed-tool-utf8-transport/);
 
   assertNotPresent(allPackageContent, [
     "FACEBOOK_CREATE_POST",

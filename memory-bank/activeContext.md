@@ -1,5 +1,26 @@
 # Active Context
 
+## Current focus — TASK010 Noto Connection plugin (2026-07-20)
+
+The external worker-only Noto connector is implemented at
+`D:/seatek_tasks/Plugins/noto`. It now uses the deployed connector routes for
+connection discovery, detail, tool discovery, and function execution, with
+company-scoped secret resolution, redaction, and pre/post audit logging.
+
+The package has passed fresh typecheck, 6 test files/27 tests, and build. The
+running Paperclip instance is healthy on port 3100. The plugin was explicitly
+uninstalled and reinstalled without `--force`, is `ready`, exposes four
+namespaced tools, and retains Suijin Content configuration including `appId`.
+Live read-only Noto verification returned 200 for discovery/detail/tools and
+201 for `FACEBOOK_GET_CURRENT_USER`; no secret or private response data was
+recorded.
+
+Remaining: require `appId` in the plugin company schema and `readConfig`
+because the current Noto contract requires `x-app-id`. Installed-plugin tool
+dispatch is also pending a valid Paperclip run context; the available
+historical run was rejected by Paperclip's scope guard before worker
+invocation, despite the run API reporting matching company ownership.
+
 ## Rollback checkpoint (historical, 2026-07-16)
 
 The user requested undoing the most recent generic Phase 0 host work. The
@@ -217,3 +238,45 @@ It has one real Kie generation, one durable image attachment, one active
 run stalled after persistence and was cancelled; orphaned Writer continuations
 were also stopped, with no duplicate Kie request. Do not force provider limits
 or rotate credentials.
+
+## 2026-07-22 managed-tool transport hardening
+
+The Windows Unicode incident is now captured as a reusable, provider-neutral
+catalog skill: `paperclipai/bundled/software-development/managed-tool-utf8-transport`.
+Agents sending non-ASCII JSON to Paperclip managed tools must use a verified,
+BOM-less UTF-8 parameters file with
+`paperclip-plugin-tool.mjs --parameters-file`; PowerShell string pipelines,
+stdin/JSON-string transports, and raw provider HTTP are not allowed. The
+preflight rejects BOMs, U+FFFD, mojibake, and unexpected question marks and
+blocks before external mutation when safe bytes cannot be guaranteed.
+
+The skill is installed for Suijin Content and attached to Facebook Publisher.
+This is a prevention rule, not merely a readback rule: post-publication
+verification can identify a bad external post but cannot prevent a mutation
+that has already been sent. Image upload/public URL behavior and the Noto
+connector remain unchanged; text transport and image transport are separate
+concerns. The catalog, helper, Suijin contract, and whitespace checks passed.
+
+## 2026-07-22 Paperclip runtime/UI hardening review
+
+The same hardening batch also wires the existing MCP server to discover
+company-visible plugin tools dynamically and expose their JSON-Schema
+parameters as MCP/Zod tools. Plugin execution now requires the real
+`PAPERCLIP_PROJECT_ID` context; the MCP layer must never substitute a company
+ID for a project ID. OpenCode local runtime config preserves existing MCP
+entries and injects the sibling Paperclip MCP server only when its built
+`dist/stdio.js` entry exists, so a clean checkout does not point at a missing
+binary.
+
+Plugin configuration validation now reports unexpected property names. The UI
+projects saved values onto the current schema before hydration, save, and
+connection test, trims URI values, preserves allowed additional properties,
+and renders root-level validation errors separately from field errors.
+
+Kie responses that return HTTP 200 with provider `code: 401` are normalized to
+the non-retryable `kie_authentication_failed` error. Deferred issue-comment
+wakes authored by the run itself are suppressed when the issue is already
+closed, avoiding a spurious continuation. These changes are independent of
+Noto image transport. Focused MCP, OpenCode, UI, validator, catalog, and Kie
+Vitest checks passed; broader server suites remain subject to the documented
+Windows workspace-permission limitations.

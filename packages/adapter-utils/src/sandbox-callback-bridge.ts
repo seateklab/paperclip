@@ -95,6 +95,11 @@ export const DEFAULT_SANDBOX_CALLBACK_BRIDGE_ROUTE_ALLOWLIST: readonly SandboxCa
   { method: "POST", path: /^\/api\/routines\/[^/]+\/triggers$/ },
   { method: "PATCH", path: /^\/api\/routine-triggers\/[^/]+$/ },
   { method: "DELETE", path: /^\/api\/routine-triggers\/[^/]+$/ },
+
+  // Plugin tools (discovery + execution, used by the MCP server bridge)
+  { method: "GET", path: /^\/api\/plugins\/tools$/ },
+  { method: "GET", path: /^\/api\/plugins\/tools\?/ },
+  { method: "POST", path: /^\/api\/plugins\/tools\/execute$/ },
 ] as const;
 
 export const DEFAULT_SANDBOX_CALLBACK_BRIDGE_HEADER_ALLOWLIST = [

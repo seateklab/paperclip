@@ -5,24 +5,24 @@ description: Write a source-grounded Facebook post for an approved Suijin topic
 
 # Write Facebook Post
 
-Use this skill only after Task Agent has released a topic child through the
-human topic gate.
+Use this skill only after Task Agent has released a topic child through its
+individual Inbox-visible board approval.
 
 ## Topic gate preflight
 
-Before writing, fetch the topic child's interactions and comments. Require a
-request_confirmation interaction and identify the actual latest comment in
-chronological order. That latest comment itself must be human-authored, and
-its trimmed body is exactly Approved, Agree, Đồng ý, or Duyệt, case-insensitively. If the actual latest comment is agent-authored, even when
-an earlier human comment says Approved, block with the owner and next action.
-If the interaction is missing, pending, rejected, ambiguous, or superseded
-without a fresh approval, block with the owner and next action. Do not write,
-reassign, or continue while blocked. Do not create or overwrite facebook-post and do not assign Image Agent.
+Before writing, call `paperclipListIssueApprovals` for the topic child and
+require exactly one individual `request_board_approval` for that child. Then
+call `paperclipGetApproval` immediately before writing and require its status
+to be exactly `approved`. Approval of another topic never authorizes this
+child. If the approval is missing, pending, rejected, revision-requested,
+duplicate, mismatched, or ambiguous, block with the owner and next action. Do
+not write, reassign, or continue while blocked. Do not create or overwrite
+facebook-post and do not assign Image Agent.
 
-Missing or ambiguous topic-child fields, unresolved or non-accepted feedback,
-and any missing, pending, rejected, ambiguous, or superseded gate must visibly
+Missing or ambiguous topic-child fields and any missing, pending, rejected,
+revision-requested, duplicate, mismatched, or ambiguous approval must visibly
 block and leave the child in_review. A Task Agent handoff comment alone is not
-approval.
+approval, and approving one topic never approves its siblings.
 Only after this preflight passes, read the child's `Topic:`, `Rationale:`,
 `Sources:`, `Language:`, and `Target Facebook Page:` fields. Missing topic,
 sources, or Page remains a visible validation blocker; do not fill gaps
