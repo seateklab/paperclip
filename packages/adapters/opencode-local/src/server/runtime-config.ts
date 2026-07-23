@@ -1,7 +1,32 @@
+import { existsSync } from "node:fs";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { asBoolean } from "@paperclipai/adapter-utils/server-utils";
+
+const CURRENT_DIR = path.dirname(fileURLToPath(import.meta.url));
+const ADAPTER_ROOT = path.resolve(CURRENT_DIR, "..", "..", "..");
+const DEFAULT_MCP_SERVER_SCRIPT = path.resolve(
+  ADAPTER_ROOT,
+  "..",
+  "mcp-server",
+  "dist",
+  "stdio.js",
+);
+
+function resolvePaperclipMcpServerEntry(): Record<string, unknown> | null {
+  // Check if the MCP server binary exists at the expected location
+  // (relative to the adapter package in the monorepo).
+  if (!existsSync(DEFAULT_MCP_SERVER_SCRIPT)) {
+    return null;
+  }
+
+  return {
+    type: "local",
+    command: [process.execPath, DEFAULT_MCP_SERVER_SCRIPT],
+  };
+}
 
 type PreparedOpenCodeRuntimeConfig = {
   env: Record<string, string>;
@@ -81,11 +106,22 @@ export async function prepareOpenCodeRuntimeConfig(input: {
   const existingPermission = isPlainObject(existingConfig.permission)
     ? existingConfig.permission
     : {};
+  const existingMcp = isPlainObject(existingConfig.mcp)
+    ? existingConfig.mcp
+    : {};
+
+  const mcpServerEntry = resolvePaperclipMcpServerEntry();
   const nextConfig = {
     ...existingConfig,
     permission: {
       ...existingPermission,
       external_directory: "allow",
+    },
+    mcp: {
+      ...existingMcp,
+      ...(mcpServerEntry
+        ? { paperclip: mcpServerEntry }
+        : {}),
     },
   };
   await fs.writeFile(runtimeConfigPath, `${JSON.stringify(nextConfig, null, 2)}\n`, "utf8");

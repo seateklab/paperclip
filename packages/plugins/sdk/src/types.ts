@@ -221,6 +221,8 @@ export interface PluginEvent<TPayload = unknown> {
  * @see PLUGIN_SPEC.md §13.6 — `runJob`
  */
 export interface PluginJobContext {
+  /** UUID of the company that owns this job run, when the host has one. */
+  companyId?: string;
   /** Stable job key matching the declaration in the manifest. */
   jobKey: string;
   /** UUID for this specific job run instance. */
@@ -654,9 +656,16 @@ export interface PluginSecretsClient {
    * written to logs, config, or other persistent storage.
    *
    * @param secretRef - The secret reference string from plugin config
+   * @param options - Optional manifest config path for exact binding checks
    * @returns The resolved secret value
    */
-  resolve(secretRef: string): Promise<string>;
+  resolve(secretRef: string, options?: PluginSecretResolveOptions): Promise<string>;
+}
+
+/** Host binding metadata for a plugin secret reference. */
+export interface PluginSecretResolveOptions {
+  /** Dot-separated path in the company configuration schema. */
+  configPath?: string;
 }
 
 /**

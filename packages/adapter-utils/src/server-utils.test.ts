@@ -10,6 +10,7 @@ import {
   buildRuntimeMountedSkillSnapshot,
   buildInvocationEnvForLogs,
   DEFAULT_PAPERCLIP_AGENT_PROMPT_TEMPLATE,
+  ensurePaperclipSkillSymlink,
   materializePaperclipSkillCopy,
   refreshPaperclipWorkspaceEnvForExecution,
   renderPaperclipWakePrompt,
@@ -201,6 +202,25 @@ describe("materializePaperclipSkillCopy", () => {
 
       await expect(materializePaperclipSkillCopy(source, target)).resolves.toMatchObject({ copiedFiles: 1 });
       await expect(fs.readFile(path.join(target, "SKILL.md"), "utf8")).resolves.toBe("# skill\n");
+    } finally {
+      await fs.rm(root, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("ensurePaperclipSkillSymlink", () => {
+  it("installs a directory skill without requiring Windows symbolic-link privileges", async () => {
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "paperclip-skill-link-"));
+    const source = path.join(root, "source");
+    const target = path.join(root, "target");
+    await fs.mkdir(source, { recursive: true });
+    await fs.writeFile(path.join(source, "SKILL.md"), "# Test skill\n", "utf8");
+
+    try {
+      await ensurePaperclipSkillSymlink(source, target);
+
+      expect((await fs.lstat(target)).isSymbolicLink()).toBe(true);
+      await expect(fs.readFile(path.join(target, "SKILL.md"), "utf8")).resolves.toBe("# Test skill\n");
     } finally {
       await fs.rm(root, { recursive: true, force: true });
     }

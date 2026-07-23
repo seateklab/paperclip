@@ -87,6 +87,22 @@ const ADAPTER_ENV_PASSTHROUGH = [
   "OPENROUTER_API_KEY",
 ];
 
+/**
+ * Build Node.js exec arguments for a repo-local plugin worker.
+ *
+ * Node treats `--import` values as module specifiers. Passing a Windows
+ * absolute path (for example `D:\\Paperclip\\...`) is parsed as the `d:` URL
+ * scheme and fails before the worker module is loaded, so convert the path to
+ * a file URL first.
+ */
+export function buildPluginWorkerExecArgv(input: {
+  packagePath?: string | null;
+  loaderPath: string;
+}): string[] | undefined {
+  if (!input.packagePath) return undefined;
+  return ["--import", pathToFileURL(input.loaderPath).href];
+}
+
 export function buildPluginWorkerEnv(input: {
   manifest: Pick<PaperclipPluginManifestV1, "capabilities">;
   instanceInfo: { deploymentMode?: string | null; deploymentExposure?: string | null };
@@ -1858,7 +1874,10 @@ export function pluginLoader(
       // (for example @paperclipai/shared exports). Run those workers through
       // the tsx loader so first-party example plugins work in development.
       if (activePlugin.packagePath && existsSync(DEV_TSX_LOADER_PATH)) {
-        workerOptions.execArgv = ["--import", DEV_TSX_LOADER_PATH];
+        workerOptions.execArgv = buildPluginWorkerExecArgv({
+          packagePath: activePlugin.packagePath,
+          loaderPath: DEV_TSX_LOADER_PATH,
+        });
       }
 
       await workerManager.startWorker(pluginId, workerOptions);

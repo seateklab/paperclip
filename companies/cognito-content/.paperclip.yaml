@@ -1,0 +1,18 @@
+schema: paperclip/v1
+agents:
+  researcher:
+    inputs:
+      env:
+        TAVILY_API_KEY:
+          kind: secret
+          requirement: required
+  fb-publisher:
+    status: paused
+    inputs:
+      env:
+        FACEBOOK_PAGE_ACCESS_TOKEN:
+          kind: secret
+          requirement: optional
+        FACEBOOK_PAGE_ID:
+          kind: plain
+          requirement: required

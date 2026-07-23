@@ -23,6 +23,67 @@ Manual local CLI mode (outside heartbeat runs): use `paperclipai agent local-cli
 
 **Run audit trail:** You MUST include `-H 'X-Paperclip-Run-Id: $PAPERCLIP_RUN_ID'` on ALL API requests that modify issues (checkout, update, comment, create subtask, release). This links your actions to the current heartbeat run for traceability.
 
+### Windows PowerShell JSON mutations
+
+On Windows PowerShell, do not pass a JSON string directly to
+`Invoke-RestMethod -Body`. Windows PowerShell can encode that string with a
+legacy code page even when the terminal displays Unicode correctly, corrupting
+Vietnamese and other non-ASCII text before Paperclip receives it.
+
+Use the bundled helper for JSON mutations. It serializes PowerShell objects and
+sends BOM-less UTF-8 bytes with `application/json; charset=utf-8`, while adding
+the Paperclip authorization and run-audit headers:
+
+```powershell
+$payload = @{
+  title = "Nghiên cứu các chủ đề nổi bật về AI Agent"
+  description = "Tổng hợp nguồn tham khảo và đề xuất hướng tiếp cận."
+  status = "todo"
+}
+
+& "skills/paperclip/scripts/paperclip-api-request.ps1" `
+  -Method POST `
+  -Path "/api/companies/$env:PAPERCLIP_COMPANY_ID/issues" `
+  -Body $payload
+```
+
+The helper also accepts an already serialized JSON string as `-Body`. Do not
+replace it with a raw string-body `Invoke-RestMethod` call for non-ASCII
+payloads. Terminal settings such as `chcp 65001` and `$OutputEncoding` affect
+console and pipeline behavior but do not make raw HTTP string bodies reliably
+UTF-8 in Windows PowerShell.
+
+## Managed plugin tools
+
+Use the bundled cross-platform helper for Paperclip plugin-tool discovery and
+execution. It calls the existing `/api/plugins/tools` and
+`/api/plugins/tools/execute` routes, derives the authenticated run context,
+and sends/decodes JSON as UTF-8. Do not construct raw PowerShell, curl, or
+provider HTTP calls for managed plugin tools, and do not retry a failed helper
+request automatically.
+
+List the tools exposed by a plugin:
+
+```text
+node skills/paperclip/scripts/paperclip-plugin-tool.mjs list --plugin-id <plugin-id>
+```
+
+Execute an advertised tool. The helper requires `PAPERCLIP_AGENT_ID`,
+`PAPERCLIP_COMPANY_ID`, `PAPERCLIP_RUN_ID`, `PAPERCLIP_API_URL`, and
+`PAPERCLIP_API_KEY`. Supply `--project-id`, set `PAPERCLIP_PROJECT_ID`, or
+let it resolve the project from `PAPERCLIP_TASK_ID`:
+
+```text
+node skills/paperclip/scripts/paperclip-plugin-tool.mjs execute \
+  --tool <namespaced-tool-name> \
+  --project-id <project-id> \
+  --stdin < parameters.json
+```
+
+The helper returns `{ "ok": true, "data": ... }` on success and a sanitized
+structured error on failure. Never copy credentials, raw provider payloads, or
+private error text into Paperclip comments, documents, or artifacts.
+
 ## The Heartbeat Procedure
 
 Follow these steps every time you wake up:

@@ -522,6 +522,54 @@ describe.sequential("agent skill routes", () => {
     );
   });
 
+  it("persists and materializes resolved desired skills through the sync route", async () => {
+    const resolvedSkills = [
+      "company/company-1/create-reviewed-topic-tasks",
+      "company/company-1/write-facebook-post",
+    ];
+    mockAgentService.getById.mockResolvedValue({
+      ...makeAgent("claude_local"),
+      adapterConfig: {},
+    });
+    mockCompanySkillService.resolveRequestedSkillKeys.mockResolvedValue(resolvedSkills);
+    mockCompanySkillService.listRuntimeSkillEntries.mockResolvedValue([]);
+    mockSecretService.resolveAdapterConfigForRuntime.mockResolvedValue({ config: {} });
+    mockAdapter.syncSkills.mockResolvedValue({
+      adapterType: "claude_local",
+      supported: true,
+      mode: "ephemeral",
+      desiredSkills: resolvedSkills,
+      entries: [],
+      warnings: [],
+    });
+
+    const res = await requestApp(await createApp(), (baseUrl) => request(baseUrl)
+      .post("/api/agents/11111111-1111-4111-8111-111111111111/skills/sync?companyId=company-1")
+      .send({ desiredSkills: ["create-reviewed-topic-tasks", "write-facebook-post"] }));
+
+    expect(res.status, JSON.stringify(res.body)).toBe(200);
+    expect(mockAgentService.update).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.objectContaining({
+        adapterConfig: {
+          paperclipSkillSync: {
+            desiredSkills: resolvedSkills,
+          },
+        },
+      }),
+      expect.any(Object),
+    );
+    expect(mockAdapter.syncSkills).toHaveBeenCalledWith(
+      expect.objectContaining({
+        adapterType: "claude_local",
+        config: expect.objectContaining({
+          paperclipRuntimeSkills: [],
+        }),
+      }),
+      resolvedSkills,
+    );
+  });
+
   it("persists canonical desired skills when creating an agent directly", async () => {
     const res = await requestApp(await createApp(), (baseUrl) => request(baseUrl)
       .post("/api/companies/company-1/agents")

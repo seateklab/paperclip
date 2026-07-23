@@ -102,11 +102,6 @@ const manifest: PaperclipPluginManifestV1 = {
         default: DEFAULT_CONFIG.enableProcessDemos,
         description: "Allows curated local child-process demos in project workspaces.",
       },
-      secretRefExample: {
-        type: "string",
-        title: "Secret Reference Example",
-        default: DEFAULT_CONFIG.secretRefExample,
-      },
       httpDemoUrl: {
         type: "string",
         title: "HTTP Demo URL",
@@ -125,6 +120,17 @@ const manifest: PaperclipPluginManifestV1 = {
         type: "string",
         title: "Workspace Scratch File",
         default: DEFAULT_CONFIG.workspaceScratchFile,
+      },
+    },
+  },
+  companyConfigSchema: {
+    type: "object",
+    properties: {
+      secretRefExample: {
+        type: "string",
+        title: "Secret Reference Example",
+        format: "secret-ref",
+        default: DEFAULT_CONFIG.secretRefExample,
       },
     },
   },

@@ -128,11 +128,14 @@ export interface CompanyPortabilityIssueManifestEntry {
   metadata: Record<string, unknown> | null;
 }
 
+export type CompanyPortabilityAgentStatus = "idle" | "paused";
+
 export interface CompanyPortabilityAgentManifestEntry {
   slug: string;
   name: string;
   path: string;
   skills: string[];
+  status: CompanyPortabilityAgentStatus;
   role: string;
   title: string | null;
   icon: string | null;

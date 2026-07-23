@@ -1,11 +1,15 @@
 import express from "express";
 import request from "supertest";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { HttpError } from "../errors.js";
 
 const mockRegistry = vi.hoisted(() => ({
   getById: vi.fn(),
   getByKey: vi.fn(),
   upsertConfig: vi.fn(),
+  getCompanyConfig: vi.fn(),
+  replaceCompanyConfigAndBindings: vi.fn(),
+  deleteCompanyConfig: vi.fn(),
   getCompanySettings: vi.fn(),
   upsertCompanySettings: vi.fn(),
 }));
@@ -329,6 +333,80 @@ describe.sequential("plugin install and upgrade authz", () => {
     expect(res.status).toBe(422);
     expect(res.body.error).toMatch(/secret references are disabled/i);
     expect(mockRegistry.upsertConfig).not.toHaveBeenCalled();
+  }, 20_000);
+
+  it("stores company secret references without exposing plaintext or another company", async () => {
+    const secretA = "77777777-7777-4777-8777-777777777777";
+    mockRegistry.getById.mockResolvedValue({
+      id: pluginId,
+      pluginKey: "paperclip.example",
+      version: "1.0.0",
+      status: "ready",
+      manifestJson: {
+        companyConfigSchema: {
+          type: "object",
+          properties: {
+            apiKeyRef: { type: "string", format: "secret-ref" },
+            webhookHmacKeyRef: { type: "string", format: "secret-ref" },
+          },
+        },
+      },
+    });
+    mockRegistry.replaceCompanyConfigAndBindings.mockResolvedValue({
+      id: "config-a",
+      pluginId,
+      companyId: companyA,
+      configJson: { apiKeyRef: secretA },
+    });
+    mockRegistry.getCompanyConfig.mockResolvedValue({
+      companyId: companyA,
+      configJson: { apiKeyRef: secretA },
+    });
+    mockRegistry.deleteCompanyConfig.mockResolvedValue(null);
+
+    const { app } = await createApp(boardActor());
+    const save = await request(app)
+      .post(`/api/plugins/${pluginId}/companies/${companyA}/config`)
+      .send({ configJson: { apiKeyRef: secretA } });
+
+    expect(save.status).toBe(200);
+    expect(mockRegistry.replaceCompanyConfigAndBindings).toHaveBeenCalledWith(
+      pluginId,
+      companyA,
+      { configJson: { apiKeyRef: secretA } },
+      new Map([["apiKeyRef", secretA]]),
+    );
+    expect(JSON.stringify(save.body)).not.toContain("resolved");
+
+    const read = await request(app).get(`/api/plugins/${pluginId}/companies/${companyA}/config`);
+    expect(read.status).toBe(200);
+    expect(read.body.configJson.apiKeyRef).toBe(secretA);
+
+    const raw = await request(app)
+      .post(`/api/plugins/${pluginId}/companies/${companyA}/config`)
+      .send({ configJson: { apiKeyRef: "kie-live-token" } });
+    expect(raw.status).toBe(422);
+    expect(mockRegistry.replaceCompanyConfigAndBindings).toHaveBeenCalledTimes(1);
+
+    const foreignRef = "88888888-8888-4888-8888-888888888888";
+    mockRegistry.replaceCompanyConfigAndBindings.mockRejectedValueOnce(
+      new HttpError(422, "Secret must belong to the selected company"),
+    );
+    const foreign = await request(app)
+      .post(`/api/plugins/${pluginId}/companies/${companyA}/config`)
+      .send({ configJson: { apiKeyRef: foreignRef } });
+    expect(foreign.status).toBe(422);
+    expect(foreign.body.error).toMatch(/selected company/i);
+    expect(JSON.stringify(foreign.body)).not.toContain("resolved");
+
+    const wrongCompany = await request(app)
+      .get(`/api/plugins/${pluginId}/companies/${companyB}/config`);
+    expect(wrongCompany.status).toBe(403);
+
+    const remove = await request(app)
+      .delete(`/api/plugins/${pluginId}/companies/${companyA}/config`);
+    expect(remove.status).toBe(200);
+    expect(mockRegistry.deleteCompanyConfig).toHaveBeenCalledWith(pluginId, companyA);
   }, 20_000);
 
   it("allows instance admins to upgrade plugins", async () => {

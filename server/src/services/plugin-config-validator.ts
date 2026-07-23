@@ -47,8 +47,24 @@ export function validateInstanceConfig(
 
   const errors = (validate.errors ?? []).map((err: ErrorObject) => ({
     field: err.instancePath || "/",
-    message: err.message ?? "validation failed",
+    message: formatValidationMessage(err),
   }));
 
   return { valid: false, errors };
+}
+
+function formatValidationMessage(error: ErrorObject): string {
+  const message = error.message ?? "validation failed";
+  if (
+    error.keyword === "additionalProperties" &&
+    typeof error.params === "object" &&
+    error.params !== null &&
+    "additionalProperty" in error.params
+  ) {
+    const property = (error.params as { additionalProperty?: unknown }).additionalProperty;
+    if (typeof property === "string") {
+      return `${message} (unexpected property: ${property})`;
+    }
+  }
+  return message;
 }

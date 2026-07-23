@@ -56,6 +56,7 @@ export class PaperclipApiClient {
       companyId: this.config.companyId,
       agentId: this.config.agentId,
       runId: this.config.runId,
+      projectId: this.config.projectId,
     };
   }
 

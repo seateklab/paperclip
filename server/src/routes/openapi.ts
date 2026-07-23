@@ -404,6 +404,10 @@ const responses = {
     description: "Bad request",
     content: { "application/json": { schema: ErrorSchema } },
   },
+  unprocessable: {
+    description: "Unprocessable entity",
+    content: { "application/json": { schema: ErrorSchema } },
+  },
   unauthorized: {
     description: "Unauthorized",
     content: { "application/json": { schema: ErrorSchema } },
@@ -3489,6 +3493,36 @@ registry.registerPath({
     body: jsonBody(z.object({ configJson: z.record(z.unknown()) })),
   },
   responses: { 200: r.ok(), 400: r.badRequest, 401: r.unauthorized },
+});
+
+registry.registerPath({
+  method: "get",
+  path: "/api/plugins/{pluginId}/companies/{companyId}/config",
+  tags: ["plugins"],
+  summary: "Get company-scoped plugin config",
+  request: { params: z.object({ pluginId: z.string(), companyId: z.string() }) },
+  responses: { 200: r.ok(), 401: r.unauthorized, 403: r.forbidden },
+});
+
+registry.registerPath({
+  method: "post",
+  path: "/api/plugins/{pluginId}/companies/{companyId}/config",
+  tags: ["plugins"],
+  summary: "Set company-scoped plugin config",
+  request: {
+    params: z.object({ pluginId: z.string(), companyId: z.string() }),
+    body: jsonBody(z.object({ configJson: z.record(z.unknown()) })),
+  },
+  responses: { 200: r.ok(), 400: r.badRequest, 401: r.unauthorized, 403: r.forbidden, 422: r.unprocessable },
+});
+
+registry.registerPath({
+  method: "delete",
+  path: "/api/plugins/{pluginId}/companies/{companyId}/config",
+  tags: ["plugins"],
+  summary: "Delete company-scoped plugin config",
+  request: { params: z.object({ pluginId: z.string(), companyId: z.string() }) },
+  responses: { 200: r.ok(), 401: r.unauthorized, 403: r.forbidden },
 });
 
 registry.registerPath({

@@ -809,7 +809,7 @@ export interface WorkerToHostMethods {
 
   // Secrets
   "secrets.resolve": [
-    params: { secretRef: string },
+    params: { secretRef: string; configPath?: string },
     result: string,
   ];
 

@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "packageName": "@paperclipai/skills-catalog",
   "packageVersion": "0.3.1",
-  "generatedAt": "2026-06-04T19:57:14.020Z",
+  "generatedAt": "2026-07-22T08:38:41.575Z",
   "skills": [
     {
       "id": "paperclipai:bundled:docs:doc-maintenance",
@@ -247,6 +247,43 @@
         }
       ],
       "contentHash": "sha256:90f278c89aa0711be150c1cd2456ca25620d02f36995b113ca9837d756a37f6c"
+    },
+    {
+      "id": "paperclipai:bundled:software-development:managed-tool-utf8-transport",
+      "key": "paperclipai/bundled/software-development/managed-tool-utf8-transport",
+      "kind": "bundled",
+      "category": "software-development",
+      "slug": "managed-tool-utf8-transport",
+      "name": "managed-tool-utf8-transport",
+      "description": "Use when sending non-ASCII JSON to Paperclip managed plugin tools, especially from Windows PowerShell or when Unicode may become ?, U+FFFD, or mojibake.",
+      "path": "catalog/bundled/software-development/managed-tool-utf8-transport",
+      "entrypoint": "SKILL.md",
+      "trustLevel": "markdown_only",
+      "compatibility": "compatible",
+      "defaultInstall": false,
+      "recommendedForRoles": [
+        "engineer",
+        "publisher",
+        "operator"
+      ],
+      "requires": [],
+      "tags": [
+        "utf-8",
+        "unicode",
+        "windows",
+        "powershell",
+        "paperclip",
+        "managed-tools"
+      ],
+      "files": [
+        {
+          "path": "SKILL.md",
+          "kind": "skill",
+          "sizeBytes": 2999,
+          "sha256": "1a5a9cad35905d7d89b79c799502e9f8edbb6449753e2cd3b9e84fb16e67ebef"
+        }
+      ],
+      "contentHash": "sha256:de57a42e266810ecb3379d7e50d15976244a89f1605ffcd372a06e251e83f1dd"
     },
     {
       "id": "paperclipai:optional:browser:agent-browser",

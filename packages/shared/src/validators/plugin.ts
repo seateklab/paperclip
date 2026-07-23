@@ -49,6 +49,28 @@ export const jsonSchemaSchema = z.record(z.string(), z.unknown()).refine(
   { message: "Must be a valid JSON Schema object (requires at least a 'type', '$ref', or composition keyword)" },
 );
 
+function hasSecretRefSchemaField(schema: Record<string, unknown> | undefined): boolean {
+  if (!schema) return false;
+  if (schema.format === "secret-ref") return true;
+  const properties = schema.properties;
+  if (properties && typeof properties === "object" && !Array.isArray(properties)) {
+    if (Object.values(properties as Record<string, unknown>).some((value) =>
+      value && typeof value === "object" && !Array.isArray(value)
+      && hasSecretRefSchemaField(value as Record<string, unknown>),
+    )) return true;
+  }
+  for (const key of ["items", "oneOf", "anyOf", "allOf"]) {
+    const value = schema[key];
+    if (Array.isArray(value) && value.some((item) =>
+      item && typeof item === "object" && !Array.isArray(item)
+      && hasSecretRefSchemaField(item as Record<string, unknown>),
+    )) return true;
+    if (value && typeof value === "object" && !Array.isArray(value)
+      && hasSecretRefSchemaField(value as Record<string, unknown>)) return true;
+  }
+  return false;
+}
+
 // ---------------------------------------------------------------------------
 // Manifest sub-type schemas
 // ---------------------------------------------------------------------------
@@ -635,6 +657,7 @@ export const pluginManifestV1Schema = z.object({
     ui: z.string().min(1).optional(),
   }),
   instanceConfigSchema: jsonSchemaSchema.optional(),
+  companyConfigSchema: jsonSchemaSchema.optional(),
   jobs: z.array(pluginJobDeclarationSchema).optional(),
   webhooks: z.array(pluginWebhookDeclarationSchema).optional(),
   tools: z.array(pluginToolDeclarationSchema).optional(),
@@ -674,6 +697,23 @@ export const pluginManifestV1Schema = z.object({
       code: z.ZodIssueCode.custom,
       message: "minimumHostVersion and minimumPaperclipVersion must match when both are declared",
       path: ["minimumHostVersion"],
+    });
+  }
+
+  const instanceHasSecretRefs = hasSecretRefSchemaField(manifest.instanceConfigSchema);
+  const companyHasSecretRefs = hasSecretRefSchemaField(manifest.companyConfigSchema);
+  if (instanceHasSecretRefs) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "Secret-ref fields must be declared in companyConfigSchema, not instanceConfigSchema",
+      path: ["instanceConfigSchema"],
+    });
+  }
+  if (manifest.capabilities.includes("secrets.read-ref") && !companyHasSecretRefs) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "Capability 'secrets.read-ref' requires secret-ref fields in companyConfigSchema",
+      path: ["companyConfigSchema"],
     });
   }
 

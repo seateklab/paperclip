@@ -1,7 +1,9 @@
-import { asc, eq, ne, sql, and } from "drizzle-orm";
+import { asc, eq, ne, sql, and, isNull } from "drizzle-orm";
 import type { Db } from "@paperclipai/db";
 import {
   plugins,
+  companySecretBindings,
+  companySecrets,
   pluginConfig,
   pluginCompanySettings,
   pluginEntities,
@@ -27,7 +29,7 @@ import type {
   PluginJobRunTrigger,
   PluginWebhookDeliveryStatus,
 } from "@paperclipai/shared";
-import { conflict, notFound } from "../errors.js";
+import { conflict, notFound, unprocessable } from "../errors.js";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -285,7 +287,7 @@ export function pluginRegistryService(db: Db) {
       db
         .select()
         .from(pluginConfig)
-        .where(eq(pluginConfig.pluginId, pluginId))
+        .where(and(eq(pluginConfig.pluginId, pluginId), isNull(pluginConfig.companyId)))
         .then((rows) => rows[0] ?? null),
 
     /**
@@ -300,7 +302,7 @@ export function pluginRegistryService(db: Db) {
       const existing = await db
         .select()
         .from(pluginConfig)
-        .where(eq(pluginConfig.pluginId, pluginId))
+        .where(and(eq(pluginConfig.pluginId, pluginId), isNull(pluginConfig.companyId)))
         .then((rows) => rows[0] ?? null);
 
       if (existing) {
@@ -311,7 +313,7 @@ export function pluginRegistryService(db: Db) {
             lastError: null,
             updatedAt: new Date(),
           })
-          .where(eq(pluginConfig.pluginId, pluginId))
+          .where(and(eq(pluginConfig.pluginId, pluginId), isNull(pluginConfig.companyId)))
           .returning()
           .then((rows) => rows[0]);
       }
@@ -320,6 +322,7 @@ export function pluginRegistryService(db: Db) {
         .insert(pluginConfig)
         .values({
           pluginId,
+          companyId: null,
           configJson: input.configJson,
         })
         .returning()
@@ -337,7 +340,7 @@ export function pluginRegistryService(db: Db) {
       const existing = await db
         .select()
         .from(pluginConfig)
-        .where(eq(pluginConfig.pluginId, pluginId))
+        .where(and(eq(pluginConfig.pluginId, pluginId), isNull(pluginConfig.companyId)))
         .then((rows) => rows[0] ?? null);
 
       if (existing) {
@@ -349,7 +352,7 @@ export function pluginRegistryService(db: Db) {
             lastError: null,
             updatedAt: new Date(),
           })
-          .where(eq(pluginConfig.pluginId, pluginId))
+          .where(and(eq(pluginConfig.pluginId, pluginId), isNull(pluginConfig.companyId)))
           .returning()
           .then((rows) => rows[0]);
       }
@@ -358,6 +361,7 @@ export function pluginRegistryService(db: Db) {
         .insert(pluginConfig)
         .values({
           pluginId,
+          companyId: null,
           configJson: input.configJson,
         })
         .returning()
@@ -372,7 +376,7 @@ export function pluginRegistryService(db: Db) {
       const rows = await db
         .update(pluginConfig)
         .set({ lastError, updatedAt: new Date() })
-        .where(eq(pluginConfig.pluginId, pluginId))
+        .where(and(eq(pluginConfig.pluginId, pluginId), isNull(pluginConfig.companyId)))
         .returning();
 
       if (rows.length === 0) throw notFound("Plugin config not found");
@@ -383,11 +387,145 @@ export function pluginRegistryService(db: Db) {
     deleteConfig: async (pluginId: string) => {
       const rows = await db
         .delete(pluginConfig)
-        .where(eq(pluginConfig.pluginId, pluginId))
+        .where(and(eq(pluginConfig.pluginId, pluginId), isNull(pluginConfig.companyId)))
         .returning();
 
       return rows[0] ?? null;
     },
+
+    /** Retrieve a plugin's company-scoped configuration. */
+    getCompanyConfig: (pluginId: string, companyId: string) =>
+      db
+        .select()
+        .from(pluginConfig)
+        .where(and(eq(pluginConfig.pluginId, pluginId), eq(pluginConfig.companyId, companyId)))
+        .then((rows) => rows[0] ?? null),
+
+    /** Create or fully replace a plugin's company-scoped configuration. */
+    upsertCompanyConfig: async (
+      pluginId: string,
+      companyId: string,
+      input: UpsertPluginConfig,
+    ) => {
+      const plugin = await getById(pluginId);
+      if (!plugin) throw notFound("Plugin not found");
+
+      const existing = await db
+        .select()
+        .from(pluginConfig)
+        .where(and(eq(pluginConfig.pluginId, pluginId), eq(pluginConfig.companyId, companyId)))
+        .then((rows) => rows[0] ?? null);
+
+      if (existing) {
+        return db
+          .update(pluginConfig)
+          .set({
+            configJson: input.configJson,
+            lastError: null,
+            updatedAt: new Date(),
+          })
+          .where(eq(pluginConfig.id, existing.id))
+          .returning()
+          .then((rows) => rows[0]);
+      }
+
+      return db
+        .insert(pluginConfig)
+        .values({
+          pluginId,
+          companyId,
+          configJson: input.configJson,
+        })
+        .returning()
+        .then((rows) => rows[0]);
+    },
+
+    /**
+     * Replace company configuration and its plugin secret bindings atomically.
+     * `refsByPath` maps manifest config paths to company-secret UUIDs.
+     */
+    replaceCompanyConfigAndBindings: async (
+      pluginId: string,
+      companyId: string,
+      input: UpsertPluginConfig,
+      refsByPath: Map<string, string>,
+    ) => {
+      const plugin = await getById(pluginId);
+      if (!plugin) throw notFound("Plugin not found");
+
+      return db.transaction(async (tx) => {
+        for (const secretId of refsByPath.values()) {
+          const secret = await tx
+            .select({ id: companySecrets.id })
+            .from(companySecrets)
+            .where(and(eq(companySecrets.id, secretId), eq(companySecrets.companyId, companyId)))
+            .then((rows) => rows[0] ?? null);
+          if (!secret) {
+            throw unprocessable("Secret must belong to the selected company");
+          }
+        }
+
+        await tx
+          .delete(companySecretBindings)
+          .where(and(
+            eq(companySecretBindings.companyId, companyId),
+            eq(companySecretBindings.targetType, "plugin"),
+            eq(companySecretBindings.targetId, pluginId),
+          ));
+
+        if (refsByPath.size > 0) {
+          await tx.insert(companySecretBindings).values(
+            [...refsByPath.entries()].map(([configPath, secretId]) => ({
+              companyId,
+              secretId,
+              targetType: "plugin",
+              targetId: pluginId,
+              configPath,
+              versionSelector: "latest",
+              required: true,
+            })),
+          );
+        }
+
+        const existing = await tx
+          .select()
+          .from(pluginConfig)
+          .where(and(eq(pluginConfig.pluginId, pluginId), eq(pluginConfig.companyId, companyId)))
+          .then((rows) => rows[0] ?? null);
+
+        if (existing) {
+          return tx
+            .update(pluginConfig)
+            .set({ configJson: input.configJson, lastError: null, updatedAt: new Date() })
+            .where(eq(pluginConfig.id, existing.id))
+            .returning()
+            .then((rows) => rows[0]);
+        }
+
+        return tx
+          .insert(pluginConfig)
+          .values({ pluginId, companyId, configJson: input.configJson })
+          .returning()
+          .then((rows) => rows[0]);
+      });
+    },
+
+    /** Delete a company config and all of its plugin secret bindings atomically. */
+    deleteCompanyConfig: async (pluginId: string, companyId: string) =>
+      db.transaction(async (tx) => {
+        await tx
+          .delete(companySecretBindings)
+          .where(and(
+            eq(companySecretBindings.companyId, companyId),
+            eq(companySecretBindings.targetType, "plugin"),
+            eq(companySecretBindings.targetId, pluginId),
+          ));
+        const rows = await tx
+          .delete(pluginConfig)
+          .where(and(eq(pluginConfig.pluginId, pluginId), eq(pluginConfig.companyId, companyId)))
+          .returning();
+        return rows[0] ?? null;
+      }),
 
     // ----- Company settings ----------------------------------------------
 

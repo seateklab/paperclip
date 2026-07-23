@@ -23,10 +23,14 @@ import { Tabs, TabsContent } from "@/components/ui/tabs";
 import { PageTabBar } from "@/components/PageTabBar";
 import {
   JsonSchemaForm,
+  projectValuesToSchema,
   validateJsonSchemaForm,
-  getDefaultValues,
   type JsonSchemaNode,
 } from "@/components/JsonSchemaForm";
+import {
+  buildPluginConfigFormValues,
+  getPluginConfigErrorState,
+} from "@/lib/plugin-config-form";
 
 /**
  * PluginSettings page component.
@@ -95,11 +99,19 @@ export function PluginSettings() {
   // Fetch existing config for the plugin
   const configSchema = plugin?.manifestJson?.instanceConfigSchema as JsonSchemaNode | undefined;
   const hasConfigSchema = configSchema && configSchema.properties && Object.keys(configSchema.properties).length > 0;
+  const companyConfigSchema = plugin?.manifestJson?.companyConfigSchema as JsonSchemaNode | undefined;
+  const hasCompanyConfigSchema = companyConfigSchema && companyConfigSchema.properties && Object.keys(companyConfigSchema.properties).length > 0;
 
   const { data: configData, isLoading: configLoading } = useQuery({
     queryKey: queryKeys.plugins.config(pluginId!),
     queryFn: () => pluginsApi.getConfig(pluginId!),
     enabled: !!pluginId && !!hasConfigSchema,
+  });
+
+  const { data: companyConfigData, isLoading: companyConfigLoading } = useQuery({
+    queryKey: queryKeys.plugins.companyConfig(pluginId!, selectedCompanyId!),
+    queryFn: () => pluginsApi.getCompanyConfig(pluginId!, selectedCompanyId!),
+    enabled: !!pluginId && !!selectedCompanyId && !!hasCompanyConfigSchema,
   });
 
   const { slots } = usePluginSlots({
@@ -242,33 +254,62 @@ export function PluginSettings() {
                     />
                   ))}
                 </div>
-              ) : hasConfigSchema ? (
-                <PluginConfigForm
-                  pluginId={pluginId!}
-                  schema={configSchema!}
-                  initialValues={configData?.configJson}
-                  isLoading={configLoading}
-                  pluginStatus={plugin.status}
-                  supportsConfigTest={(plugin as unknown as { supportsConfigTest?: boolean }).supportsConfigTest === true}
-                />
-              ) : environmentDrivers.length > 0 ? (
-                <div className="rounded-md border border-border/60 bg-muted/20 px-4 py-3 text-sm">
-                  <p className="font-medium text-foreground">Configure this plugin from Company Environments.</p>
-                  <p className="mt-1 text-muted-foreground">
-                    {driverLabel || "This plugin"} registers environment runtime settings there so credentials stay
-                    company-scoped instead of instance-global.
-                  </p>
-                  <div className="mt-3">
-                    <Link to="/company/settings/environments">
-                      <Button variant="outline" size="sm">Open Company Environments</Button>
-                    </Link>
-                  </div>
+              ) : (
+                <div className="space-y-6">
+                  {hasConfigSchema ? (
+                    <div className="space-y-3">
+                      <div>
+                        <h3 className="text-sm font-semibold">Instance defaults</h3>
+                        <p className="text-xs text-muted-foreground">Non-secret settings shared by the plugin.</p>
+                      </div>
+                      <PluginConfigForm
+                        pluginId={pluginId!}
+                        schema={configSchema!}
+                        initialValues={configData?.configJson}
+                        isLoading={configLoading}
+                        pluginStatus={plugin.status}
+                        supportsConfigTest={(plugin as unknown as { supportsConfigTest?: boolean }).supportsConfigTest === true}
+                      />
+                    </div>
+                  ) : null}
+                  {hasCompanyConfigSchema && selectedCompanyId ? (
+                    <div className="space-y-3 border-t border-border/60 pt-5">
+                      <div>
+                        <h3 className="text-sm font-semibold">Company credentials</h3>
+                        <p className="text-xs text-muted-foreground">
+                          Select a Paperclip secret reference for {selectedCompany?.name ?? "this company"}. Raw provider tokens are intentionally rejected.
+                        </p>
+                      </div>
+                      <PluginConfigForm
+                        pluginId={pluginId!}
+                        companyId={selectedCompanyId}
+                        scope="company"
+                        schema={companyConfigSchema!}
+                        initialValues={companyConfigData?.configJson}
+                        isLoading={companyConfigLoading}
+                        allowRawSecretValues={false}
+                      />
+                    </div>
+                  ) : null}
+                  {!hasConfigSchema && !hasCompanyConfigSchema && environmentDrivers.length > 0 ? (
+                    <div className="rounded-md border border-border/60 bg-muted/20 px-4 py-3 text-sm">
+                      <p className="font-medium text-foreground">Configure this plugin from Company Environments.</p>
+                      <p className="mt-1 text-muted-foreground">
+                        {driverLabel || "This plugin"} registers environment runtime settings there so credentials stay
+                        company-scoped instead of instance-global.
+                      </p>
+                      <div className="mt-3">
+                        <Link to="/company/settings/environments">
+                          <Button variant="outline" size="sm">Open Company Environments</Button>
+                        </Link>
+                      </div>
+                    </div>
+                  ) : null}
+                  {!hasConfigSchema && !hasCompanyConfigSchema && !hasLocalFolders && environmentDrivers.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">This plugin does not require any settings.</p>
+                  ) : null}
                 </div>
-              ) : !hasLocalFolders ? (
-                <p className="text-sm text-muted-foreground">
-                  This plugin does not require any settings.
-                </p>
-              ) : null}
+              )}
             </section>
           </div>
         </TabsContent>
@@ -919,6 +960,8 @@ function isLikelyAbsolutePath(pathValue: string) {
 
 interface PluginConfigFormProps {
   pluginId: string;
+  companyId?: string;
+  scope?: "instance" | "company";
   schema: JsonSchemaNode;
   initialValues?: Record<string, unknown>;
   isLoading?: boolean;
@@ -926,6 +969,8 @@ interface PluginConfigFormProps {
   pluginStatus?: string;
   /** Whether the plugin worker implements `validateConfig`. */
   supportsConfigTest?: boolean;
+  /** Whether secret-ref fields may accept raw values. */
+  allowRawSecretValues?: boolean;
 }
 
 /**
@@ -935,14 +980,22 @@ interface PluginConfigFormProps {
  * Separated from PluginSettings to isolate re-render scope — only the form
  * re-renders on field changes, not the entire page.
  */
-function PluginConfigForm({ pluginId, schema, initialValues, isLoading, pluginStatus, supportsConfigTest }: PluginConfigFormProps) {
+function PluginConfigForm({
+  pluginId,
+  companyId,
+  scope = "instance",
+  schema,
+  initialValues,
+  isLoading,
+  pluginStatus,
+  supportsConfigTest,
+  allowRawSecretValues = true,
+}: PluginConfigFormProps) {
   const queryClient = useQueryClient();
 
   // Form values: start with saved values, fall back to schema defaults
-  const [values, setValues] = useState<Record<string, unknown>>(() => ({
-    ...getDefaultValues(schema),
-    ...(initialValues ?? {}),
-  }));
+  const initialFormValues = buildPluginConfigFormValues(schema, initialValues);
+  const [values, setValues] = useState<Record<string, unknown>>(() => initialFormValues);
 
   // Sync when saved config loads asynchronously — only on first load so we
   // don't overwrite in-progress user edits if the query refetches (e.g. on
@@ -951,10 +1004,7 @@ function PluginConfigForm({ pluginId, schema, initialValues, isLoading, pluginSt
   useEffect(() => {
     if (initialValues && !hasHydratedRef.current) {
       hasHydratedRef.current = true;
-      setValues({
-        ...getDefaultValues(schema),
-        ...initialValues,
-      });
+      setValues(buildPluginConfigFormValues(schema, initialValues));
     }
   }, [initialValues, schema]);
 
@@ -963,24 +1013,29 @@ function PluginConfigForm({ pluginId, schema, initialValues, isLoading, pluginSt
   const [testResult, setTestResult] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
   // Dirty tracking: compare against initial values
-  const isDirty = JSON.stringify(values) !== JSON.stringify({
-    ...getDefaultValues(schema),
-    ...(initialValues ?? {}),
-  });
+  const isDirty = JSON.stringify(values) !== JSON.stringify(initialFormValues);
 
   // Save mutation
   const saveMutation = useMutation({
     mutationFn: (configJson: Record<string, unknown>) =>
-      pluginsApi.saveConfig(pluginId, configJson),
+      scope === "company"
+        ? pluginsApi.saveCompanyConfig(pluginId, companyId!, configJson)
+        : pluginsApi.saveConfig(pluginId, configJson),
     onSuccess: () => {
       setSaveMessage({ type: "success", text: "Configuration saved." });
       setTestResult(null);
-      queryClient.invalidateQueries({ queryKey: queryKeys.plugins.config(pluginId) });
+      queryClient.invalidateQueries({
+        queryKey: scope === "company"
+          ? queryKeys.plugins.companyConfig(pluginId, companyId!)
+          : queryKeys.plugins.config(pluginId),
+      });
       // Clear success message after 3s
       setTimeout(() => setSaveMessage(null), 3000);
     },
     onError: (err: Error) => {
-      setSaveMessage({ type: "error", text: err.message || "Failed to save configuration." });
+      const errorState = getPluginConfigErrorState(err);
+      setErrors(errorState.fieldErrors);
+      setSaveMessage({ type: "error", text: errorState.summary || "Failed to save configuration." });
     },
   });
 
@@ -996,7 +1051,9 @@ function PluginConfigForm({ pluginId, schema, initialValues, isLoading, pluginSt
       }
     },
     onError: (err: Error) => {
-      setTestResult({ type: "error", text: err.message || "Configuration test failed." });
+      const errorState = getPluginConfigErrorState(err);
+      setErrors(errorState.fieldErrors);
+      setTestResult({ type: "error", text: errorState.summary || "Configuration test failed." });
     },
   });
 
@@ -1008,26 +1065,28 @@ function PluginConfigForm({ pluginId, schema, initialValues, isLoading, pluginSt
   }, []);
 
   const handleSave = useCallback(() => {
+    const configJson = projectValuesToSchema(schema, values);
     // Validate before saving
-    const validationErrors = validateJsonSchemaForm(schema, values);
+    const validationErrors = validateJsonSchemaForm(schema, configJson);
     if (Object.keys(validationErrors).length > 0) {
       setErrors(validationErrors);
       return;
     }
     setErrors({});
-    saveMutation.mutate(values);
+    saveMutation.mutate(configJson);
   }, [schema, values, saveMutation]);
 
   const handleTestConnection = useCallback(() => {
+    const configJson = projectValuesToSchema(schema, values);
     // Validate before testing
-    const validationErrors = validateJsonSchemaForm(schema, values);
+    const validationErrors = validateJsonSchemaForm(schema, configJson);
     if (Object.keys(validationErrors).length > 0) {
       setErrors(validationErrors);
       return;
     }
     setErrors({});
     setTestResult(null);
-    testMutation.mutate(values);
+    testMutation.mutate(configJson);
   }, [schema, values, testMutation]);
 
   if (isLoading) {
@@ -1047,6 +1106,7 @@ function PluginConfigForm({ pluginId, schema, initialValues, isLoading, pluginSt
         onChange={handleChange}
         errors={errors}
         disabled={saveMutation.isPending}
+        allowRawSecretValues={allowRawSecretValues}
       />
 
       {/* Status messages */}
@@ -1090,7 +1150,7 @@ function PluginConfigForm({ pluginId, schema, initialValues, isLoading, pluginSt
             "Save Configuration"
           )}
         </Button>
-        {pluginStatus === "ready" && supportsConfigTest && (
+        {scope === "instance" && pluginStatus === "ready" && supportsConfigTest && (
           <Button
             variant="outline"
             onClick={handleTestConnection}

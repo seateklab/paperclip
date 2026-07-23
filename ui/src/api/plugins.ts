@@ -372,6 +372,18 @@ export const pluginsApi = {
   saveConfig: (pluginId: string, configJson: Record<string, unknown>) =>
     api.post<PluginConfig>(`/plugins/${pluginId}/config`, { configJson }),
 
+  /** Fetch the company-scoped configuration and secret references for a plugin. */
+  getCompanyConfig: (pluginId: string, companyId: string) =>
+    api.get<PluginConfig | null>(`/plugins/${pluginId}/companies/${companyId}/config`),
+
+  /** Save company-scoped configuration; secret fields must contain UUID references. */
+  saveCompanyConfig: (pluginId: string, companyId: string, configJson: Record<string, unknown>) =>
+    api.post<PluginConfig>(`/plugins/${pluginId}/companies/${companyId}/config`, { configJson }),
+
+  /** Delete company-scoped plugin configuration and its secret bindings. */
+  deleteCompanyConfig: (pluginId: string, companyId: string) =>
+    api.delete<PluginConfig | null>(`/plugins/${pluginId}/companies/${companyId}/config`),
+
   /**
    * Call the plugin's `validateConfig` RPC method to test the configuration
    * without persisting it.

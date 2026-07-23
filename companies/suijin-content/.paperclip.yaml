@@ -1,0 +1,8 @@
+schema: paperclip/v1
+agents:
+  research-agent:
+    inputs:
+      env:
+        TAVILY_API_KEY:
+          kind: secret
+          requirement: required

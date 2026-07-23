@@ -1,0 +1,10 @@
+src/
+tests/
+scripts/
+*.ts
+**/*.orig
+**/*.orig.*
+*.orig*
+migrations/*.orig*
+skills/**/SKILL.md.orig*
+package.dev.json

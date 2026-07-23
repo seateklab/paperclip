@@ -8696,6 +8696,42 @@ export function heartbeatService(db: Db, options: HeartbeatServiceOptions = {}) 
         }
         const deferredCommentIds = extractWakeCommentIds(deferredContextSeed);
         const deferredWakeReason = readNonEmptyString(deferredContextSeed.wakeReason);
+        const deferredComments =
+          deferredCommentIds.length > 0
+            ? await tx
+              .select({
+                id: issueComments.id,
+                createdByRunId: issueComments.createdByRunId,
+              })
+              .from(issueComments)
+              .where(
+                and(
+                  eq(issueComments.companyId, issue.companyId),
+                  eq(issueComments.issueId, issue.id),
+                  inArray(issueComments.id, deferredCommentIds),
+                ),
+              )
+            : [];
+        const hasOnlyRunAuthoredDeferredComments =
+          deferredComments.length > 0 &&
+          deferredComments.length === deferredCommentIds.length &&
+          deferredComments.every((comment) => readNonEmptyString(comment.createdByRunId));
+        if (
+          hasOnlyRunAuthoredDeferredComments &&
+          deferredWakeReason === "issue_commented" &&
+          (issue.status === "done" || issue.status === "cancelled")
+        ) {
+          await tx
+            .update(agentWakeupRequests)
+            .set({
+              status: "cancelled",
+              finishedAt: new Date(),
+              error: "Deferred issue-comment wake suppressed for run-authored comment on closed issue",
+              updatedAt: new Date(),
+            })
+            .where(eq(agentWakeupRequests.id, deferred.id));
+          continue;
+        }
         // Only human/comment-reopen interactions should revive completed issues;
         // system follow-ups such as retry or cleanup wakes must not reopen closed work.
         const shouldReopenDeferredCommentWake =

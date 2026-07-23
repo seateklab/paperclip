@@ -542,6 +542,8 @@ export interface PaperclipPluginManifestV1 {
   };
   /** JSON Schema for operator-editable instance configuration. */
   instanceConfigSchema?: JsonSchema;
+  /** JSON Schema for company-scoped configuration, including secret references. */
+  companyConfigSchema?: JsonSchema;
   /** Scheduled jobs this plugin declares. Requires `jobs.schedule` capability. */
   jobs?: PluginJobDeclaration[];
   /** Webhook endpoints this plugin declares. Requires `webhooks.receive` capability. */
@@ -685,9 +687,11 @@ export interface PluginStateRecord {
 export interface PluginConfig {
   /** UUID primary key. */
   id: string;
-  /** FK to `plugins.id`. Unique — each plugin has at most one config row. */
+  /** FK to `plugins.id`. */
   pluginId: string;
-  /** Operator-provided configuration values (validated against `instanceConfigSchema`). */
+  /** Optional company scope; null denotes global instance configuration. */
+  companyId: string | null;
+  /** Operator-provided configuration values (validated against the matching manifest schema). */
   configJson: Record<string, unknown>;
   /** Most recent config validation error, if any. */
   lastError: string | null;
