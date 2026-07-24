@@ -3,6 +3,8 @@
 ## In Progress
 - [TASK010](TASK010-noto-connection-plugin.md) - Noto Connection external plugin and live verification
 - [TASK012](TASK012-suijin-workflow-hardening.md) - Suijin fresh-issue workflow hardening
+- [TASK013](TASK013-noto-file-create-sui56.md) - Noto file creation and SUI-56 repair
+- [TASK014](TASK014-suijin-approval-wake-cancellation-sui60-sui61.md) - Suijin approval wake cancellation for SUI-60/SUI-61
 
 - [TASK006](TASK006-autonomous-kie-image-plugin.md) - Kie secret-resolution MVP
   implementation

@@ -4,6 +4,7 @@ import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest
 import {
   agents,
   agentWakeupRequests,
+  approvals,
   companies,
   createDb,
   documentRevisions,
@@ -11,6 +12,7 @@ import {
   heartbeatRuns,
   issueComments,
   issueDocuments,
+  issueApprovals,
   issues,
 } from "@paperclipai/db";
 import { ISSUE_CONTINUATION_SUMMARY_DOCUMENT_KEY } from "@paperclipai/shared";
@@ -359,6 +361,70 @@ describeEmbeddedPostgres("heartbeat stale queued-run invalidation", () => {
     expect(wakeup?.status).toBe("skipped");
     expect(wakeup?.error).toContain("assignee changed");
     expect(countExecuteCallsForRun(runId)).toBe(0);
+  });
+
+  it("keeps approved review wakes runnable when the review issue is unassigned", async () => {
+    const { companyId, agentId } = await seedCompanyAndAgent();
+    const issueId = randomUUID();
+    await db.insert(issues).values({
+      id: issueId,
+      companyId,
+      title: "Approved review task",
+      status: "in_review",
+      priority: "high",
+      assigneeAgentId: null,
+    });
+
+    const approvalId = randomUUID();
+    await db.insert(approvals).values({
+      id: approvalId,
+      companyId,
+      type: "request_board_approval",
+      requestedByAgentId: agentId,
+      status: "approved",
+      payload: { title: "Approve review task" },
+      decidedByUserId: "local-board",
+      decidedAt: new Date(),
+    });
+    await db.insert(issueApprovals).values({
+      companyId,
+      issueId,
+      approvalId,
+      linkedByAgentId: agentId,
+    });
+
+    const { runId } = await seedQueuedRun({
+      companyId,
+      agentId,
+      issueId,
+      wakeReason: "approval_approved",
+      invocationSource: "automation",
+      contextExtras: {
+        approvalId,
+        approvalStatus: "approved",
+      },
+    });
+
+    await heartbeat.resumeQueuedRuns();
+
+    await waitForCondition(async () => {
+      const run = await db
+        .select({ status: heartbeatRuns.status })
+        .from(heartbeatRuns)
+        .where(eq(heartbeatRuns.id, runId))
+        .then((rows) => rows[0] ?? null);
+      return run?.status === "succeeded";
+    });
+
+    const run = await db
+      .select({ status: heartbeatRuns.status, errorCode: heartbeatRuns.errorCode })
+      .from(heartbeatRuns)
+      .where(eq(heartbeatRuns.id, runId))
+      .then((rows) => rows[0] ?? null);
+
+    expect(run?.status).toBe("succeeded");
+    expect(run?.errorCode).not.toBe("issue_assignee_changed");
+    expect(countExecuteCallsForRun(runId)).toBe(1);
   });
 
   it("cancels queued runs when the issue reaches a terminal status before the run starts", async () => {

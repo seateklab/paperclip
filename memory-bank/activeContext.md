@@ -1,6 +1,26 @@
 # Active Context
 
-## Current focus — TASK010 Noto Connection plugin (2026-07-20)
+## Current focus — TASK013 Noto file creation and SUI-56 repair (2026-07-23)
+
+The approved merged plan uses only the mentor-provided Noto file-creation
+contract at `D:/seatek_tasks/Docs/Noto/Tạo file với content.txt`:
+`POST /v1/file/create`. The Paperclip tool keeps the compatibility name
+`upload_file`, sends actual image bytes as base64 content, validates the
+returned private file record, and does not use chunk/session upload routes.
+SUI-56 remains blocked until the existing Paperclip attachment is verified in
+the private Suijin folder and the approval-gated Publisher completes one
+fresh-access Facebook publication.
+
+The detailed source-of-truth task is
+[`memory-bank/tasks/TASK013-noto-file-create-sui56.md`](tasks/TASK013-noto-file-create-sui56.md).
+
+Live blocker: the managed `/v1/file/create` call accepted the SUI-56 image
+base64 as textual content and created one public draft with null MIME and a
+base64-length size. The adapter failed closed without retry, so SUI-56 artifact
+metadata, approval, and Facebook publication remain unchanged. The supplied
+Noto document does not define a safe binary upload or cleanup operation.
+
+## Previous context — TASK010 Noto Connection plugin (2026-07-20)
 
 The external worker-only Noto connector is implemented at
 `D:/seatek_tasks/Plugins/noto`. It now uses the deployed connector routes for
@@ -256,6 +276,24 @@ verification can identify a bad external post but cannot prevent a mutation
 that has already been sent. Image upload/public URL behavior and the Noto
 connector remain unchanged; text transport and image transport are separate
 concerns. The catalog, helper, Suijin contract, and whitespace checks passed.
+
+## 2026-07-23 external API evidence gate after SUI-56
+
+SUI-56 exposed an integration-boundary failure. The Noto server documentation
+and frontend contain folder/file upload routes, but the installed Paperclip
+Noto plugin exposes only connection discovery, connection inspection, tool
+listing, and provider-function execution. The Image Agent therefore could not
+perform the required Noto folder upload; its completion claim was unsupported,
+and Publisher correctly blocked on missing verified Noto metadata.
+
+Prevention rule: never use an external/provider API based only on frontend
+routes, documentation indexes, endpoint names, partial snippets, or analogous
+code. Before using the exact operation, obtain and read the complete API
+document covering endpoint, method, authentication, request/response schemas,
+content type, errors, and pagination/idempotency. If it is not available, ask
+the user to download or provide it and stop. Also verify that the operation is
+exposed by the installed Paperclip plugin; upstream availability alone is not
+enough.
 
 ## 2026-07-22 Paperclip runtime/UI hardening review
 

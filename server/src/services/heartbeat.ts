@@ -6275,6 +6275,28 @@ export function heartbeatService(db: Db, options: HeartbeatServiceOptions = {}) 
     const resumeIntent = context.resumeIntent === true || context.followUpRequested === true;
     const wakeReason = readNonEmptyString(context.wakeReason);
     const retryReason = readNonEmptyString(context.retryReason) ?? run.scheduledRetryReason ?? null;
+    const approvalId = readNonEmptyString(context.approvalId);
+    const isApprovedReviewWake =
+      issue.status === "in_review" &&
+      wakeReason === "approval_approved" &&
+      readNonEmptyString(context.approvalStatus) === "approved" &&
+      Boolean(
+        approvalId &&
+          (await db
+            .select({ id: approvals.id })
+            .from(issueApprovals)
+            .innerJoin(approvals, eq(issueApprovals.approvalId, approvals.id))
+            .where(
+              and(
+                eq(issueApprovals.companyId, run.companyId),
+                eq(issueApprovals.issueId, issueId),
+                eq(issueApprovals.approvalId, approvalId),
+                eq(approvals.status, "approved"),
+              ),
+            )
+            .limit(1)
+            .then((rows) => rows[0] ?? null))
+      );
 
     if (
       issue.status === "in_progress" &&
@@ -6305,7 +6327,7 @@ export function heartbeatService(db: Db, options: HeartbeatServiceOptions = {}) 
       }
     }
 
-    if (issue.assigneeAgentId !== run.agentId && !isInteractionWake) {
+    if (issue.assigneeAgentId !== run.agentId && !isInteractionWake && !isApprovedReviewWake) {
       return {
         stale: true,
         errorCode: "issue_assignee_changed",

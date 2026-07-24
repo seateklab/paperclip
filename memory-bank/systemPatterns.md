@@ -38,6 +38,19 @@ Adapters and external integrations load through the plugin flow. Core server
 and UI code must not hardcode external adapter imports. Adapter configuration
 defines the runtime boundary; the core protocol must remain vendor-neutral.
 
+## External API evidence gate
+
+Before using an external or provider API, an agent must read the complete API
+document for the exact operation. The document must cover the endpoint, HTTP
+method, authentication, request and response schemas, content type, error
+semantics, and relevant pagination or idempotency rules. Frontend route
+constants, documentation indexes, endpoint names, partial snippets, and
+similar APIs are discovery hints only, never sufficient authority. If the
+complete document is missing, the agent must stop and ask the user to
+download or provide it; it must not infer, call, or mutate the API. The agent
+must also distinguish an upstream API that exists from an operation actually
+exposed by the installed Paperclip plugin.
+
 ## Workspace and recovery pattern
 
 Issues may use project workspaces, execution workspaces, worktrees, runtime

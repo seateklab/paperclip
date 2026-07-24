@@ -1,5 +1,17 @@
 # Progress
 
+## TASK013 Noto file creation and SUI-56 repair (2026-07-23)
+
+The merged implementation plan is now recorded in
+`memory-bank/tasks/TASK013-noto-file-create-sui56.md`. It replaces the earlier
+chunk/session upload design with the mentor-provided `POST /v1/file/create`
+contract only. The plugin and managed skill are updated and live storage
+verification reached the retained private folder, but `/v1/file/create`
+treated the base64 image as text and returned an invalid public draft record.
+The adapter failed closed without retry; artifact metadata, approval, and
+Facebook publication remain unchanged pending a documented binary creation or
+cleanup contract from Noto.
+
 ## TASK010 Noto Connection external plugin (2026-07-20)
 
 The external `@seatek/noto` worker plugin was implemented and validated

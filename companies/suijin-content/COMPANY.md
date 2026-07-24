@@ -38,13 +38,15 @@ approved; approving one topic never releases another topic to the Facebook
 Writer.
 
 The Facebook Writer saves `facebook-post` and hands the durable issue to the
-Image Agent. The Image Agent creates one durable Kie-backed attachment and a
-`facebook-image` artifact. The Facebook Publisher then requires a linked
-`request_board_approval` for the exact Page, post, image artifact, and
-idempotency key. Only an approved gate permits the Publisher to load the
-external managed Noto skill. On success it records a Noto publication artifact,
-comments the permalink, and closes that topic child. The Task Agent closes the
-root after all result children have durable outcomes.
+Image Agent. The Image Agent downloads the Kie result, uploads the image bytes
+to a private or draft Noto media file, and creates one Paperclip attachment plus
+one `facebook-image` artifact containing the Noto file identity. The Facebook
+Publisher then requires a linked `request_board_approval` for the exact Page,
+post, image artifact, and idempotency key. Only an approved gate permits the
+Publisher to execute the external managed Noto publication skill. On success it
+records a Noto publication artifact, comments the permalink, and closes that
+topic child. The Task Agent closes the root after all result children have
+durable outcomes.
 
 ## Org chart
 
@@ -53,8 +55,8 @@ root after all result children have durable outcomes.
 | task-agent | Task Agent | - | paperclip, create-reviewed-topic-tasks | active |
 | research-agent | Research Agent | task-agent | paperclip, research-facebook-topics, agent-browser | active |
 | facebook-writer | Facebook Writer | task-agent | paperclip, write-facebook-post, verifying-published-text | active |
-| image-agent | Image Agent | task-agent | paperclip, kie-image-generation | active |
-| facebook-publisher | Facebook Publisher | task-agent | paperclip, publish-facebook-via-noto, noto | active/idle-by-default |
+| image-agent | Image Agent | task-agent | paperclip, kie-image-generation, persist-facebook-image-to-noto, managed-tool-utf8-transport, noto | active |
+| facebook-publisher | Facebook Publisher | task-agent | paperclip, managed-tool-utf8-transport, publish-facebook-via-noto, verifying-published-text, noto | active/idle-by-default |
 
 The Publisher is not parked by package configuration. Its final board approval
 is the safety gate, and missing external setup blocks before any call.
@@ -74,10 +76,11 @@ are written through Paperclip's existing control-plane contracts.
 - `KIE_API_KEY` is required by the managed Kie Image Generation plugin and must
   be configured in the plugin's company-scoped settings.
 - The external Noto plugin must be installed and expose the managed skill
-  shortname `noto` to Facebook Publisher. Configure its credentials and Page
-  access outside this package. Noto credentials, tokens, Page identifiers that
-  are not the issue's input, and machine-local paths never belong in package
-  files.
+  shortname `noto` to Image Agent and Facebook Publisher. The selected Noto
+  connection must advertise private/draft folder and byte-upload operations.
+  Configure its credentials and Page access outside this package. Noto
+  credentials, tokens, Page identifiers that are not the issue's input, and
+  machine-local paths never belong in package files.
 
 Suijin does not call a direct social-network API and does not invent a Noto
 tool or endpoint name. If Noto, Kie, a Page, a secret, or either approval is

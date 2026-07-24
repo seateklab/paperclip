@@ -21,7 +21,7 @@ Task Agent -> Research Agent -> research-results
                                    Facebook Writer -> facebook-post
                                               v
                                          Image Agent
-                                   durable image + artifact
+                              Noto media + Paperclip artifact
                                               v
                                    Facebook Publisher
                                   final board approval
@@ -39,12 +39,14 @@ own Inbox item. The board must approve each topic independently; approving one
 child releases only that child to Facebook Writer, while every other child
 remains in review.
 
-The Writer stores `facebook-post`, then Image creates one durable Kie-backed
-Paperclip attachment and `facebook-image` artifact. Publisher verifies the
-final approval and uses only the installed managed skill `noto`; it does not
-assume or expose a vendor tool name, endpoint, raw credential, or direct social
-API. Successful publication stores a `provider: noto` artifact, permalink, and
-external post ID, then closes the topic.
+The Writer stores `facebook-post`, then Image downloads the temporary Kie result,
+uploads the image bytes to a private or draft Noto media file, and creates one
+Paperclip attachment plus one `facebook-image` artifact containing the Noto
+file ID. Publisher verifies the final approval and uses only the installed
+managed skill `noto`; it does not assume or expose a vendor tool name, endpoint,
+raw credential, or direct social API. Successful publication stores a
+`provider: noto` artifact, permalink, and external post ID, then closes the
+topic.
 
 ### How Publisher uses Noto
 
@@ -74,15 +76,16 @@ external post ID, then closes the topic.
 | `task-agent` | Task Agent | human board / none | `paperclip`, `create-reviewed-topic-tasks` | Coordinates the root and topic gates |
 | `research-agent` | Research Agent | Task Agent | `paperclip`, `research-facebook-topics`, `agent-browser` | Searches current sources and writes results |
 | `facebook-writer` | Facebook Writer | Task Agent | `paperclip`, `write-facebook-post`, `verifying-published-text` | Writes and verifies the post document |
-| `image-agent` | Image Agent | Task Agent | `paperclip`, `kie-image-generation` | Generates the durable image artifact |
+| `image-agent` | Image Agent | Task Agent | `paperclip`, `kie-image-generation`, `persist-facebook-image-to-noto`, `managed-tool-utf8-transport`, `noto` | Uploads Noto media and generates the durable image artifact |
 | `facebook-publisher` | Facebook Publisher | Task Agent | `paperclip`, `managed-tool-utf8-transport`, `publish-facebook-via-noto`, `verifying-published-text`, `noto` | Publishes only after final approval and published-body readback |
 
 ## Included content
 
 - Project `Suijin` (`suijin`) with a safe starter research issue.
 - Local skills: `research-facebook-topics`, `create-reviewed-topic-tasks`,
-  `write-facebook-post`, `publish-facebook-via-noto`, and the verified
-  `verifying-published-text` skill.
+  `write-facebook-post`, `persist-facebook-image-to-noto`,
+  `publish-facebook-via-noto`, and the verified `verifying-published-text`
+  skill.
 - Referenced runtime skills: `paperclip`, `agent-browser`,
   `kie-image-generation`, the bundled `managed-tool-utf8-transport` skill,
   and the externally installed `noto` skill.
@@ -93,9 +96,9 @@ external post ID, then closes the topic.
 2. Configure the managed Kie Image Generation plugin with its company-scoped
    secret reference.
 3. Install the external Noto plugin and assign its managed `noto` skill to
-   Facebook Publisher.
+   Image Agent and Facebook Publisher.
 4. Install the bundled `managed-tool-utf8-transport` skill for the company and
-   attach it to Facebook Publisher.
+   attach it to Image Agent and Facebook Publisher.
 5. Configure Noto credentials and Page access outside this package.
 6. Replace the starter Page placeholder with a dedicated Noto-recognized test
    Page identifier.
@@ -114,7 +117,7 @@ pnpm paperclipai company import ./companies/suijin-content --target new --new-co
 ```
 
 The dry run should report one company, five agents, one project, one starter
-issue, and five local skills. External skill warnings are expected until the
+issue, and six local skills. External skill warnings are expected until the
 runtime prerequisites are installed.
 
 ## References

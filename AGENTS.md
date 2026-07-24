@@ -67,6 +67,15 @@ During implementation:
 - Prefer the smallest change that fully solves the requested problem.
 - Follow existing package patterns and scripts; do not invent a formatter or
   lint command when the repository does not provide one.
+- External API evidence gate: before using any external or provider API that is
+  not already fully represented by the current code contract, obtain and read
+  the complete API document first. The document must define the endpoint,
+  method, authentication, request schema, response schema, content type,
+  error semantics, and relevant pagination/idempotency behavior. If the full
+  document is unavailable, stop and ask the user to download or provide it.
+  Do not infer an API contract from frontend route constants, documentation
+  indexes, endpoint names, partial snippets, or analogous APIs, and do not
+  call or mutate the undocumented API.
 - Update all affected contract layers together.
 - Keep failures visible. Do not silently swallow API, background-run, or UI
   errors.

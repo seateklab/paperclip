@@ -14,6 +14,10 @@ executing any publication operation, require all of the following:
   regenerated body.
 - Exactly one active attachment-backed artifact exists and its
   `metadata.artifactKind === "facebook-image"`.
+- That image artifact contains one valid `metadata.notoFileId`, one valid
+  `metadata.notoFolderId`, a deterministic `metadata.notoFileName`, integer
+  `metadata.byteSize`, and a 64-character `metadata.sha256`; the Noto file was
+  created in the private managed `Suijin Facebook Images` folder.
 - The issue contains a concrete `Target Facebook Page:` value, not the
   starter Page placeholder.
 - The managed `noto` skill is installed and available to this agent.
@@ -130,6 +134,16 @@ follow this exact discovery sequence:
    execute envelope, plus an `input` object containing only schema-accepted
    fields. Provider-specific fields remain only inside schema-derived `input`.
 
+Before selecting the Facebook function, call `seatek.noto:get_file_detail` with
+the artifact's `notoFolderId` and `notoFileId`. Require the exact stored
+filename, MIME type, integer byte size, SHA-256, folder ID, active/private
+state, and an HTTPS storage path. If the file is missing, inactive, deleted,
+duplicated, or mismatched, block before Facebook execution. After the fresh
+approval check and immediately before the Facebook call, call
+`seatek.noto:get_file_detail` again; pass its fresh HTTPS `storagePath`/`accessUrl`
+only when the discovered Facebook schema requires a URL. Never persist that
+temporary Noto URL or place it in a comment or durable metadata.
+
 Use the managed operation names above exactly. Never add a provider-specific
 Facebook function name, endpoint, namespace, credential field, or direct API
 fallback to this package.
@@ -146,10 +160,12 @@ assumed provider interface:
    text, message, or content field. Do not truncate, rewrite, or put it in an
    unrelated field.
 3. Map the image only when the discovered schema accepts an actually
-   reachable representation of the Paperclip attachment. An attachment ID or
-   other representation is usable only when the advertised operation can
-   reach it. A local URL, guessed upload field, guessed base64 form, or
-   inaccessible path blocks before execution.
+   reachable representation of the verified Noto file. Prefer the stored
+   `metadata.notoFileId` when the schema accepts a file ID. If the schema only
+   accepts a URL, obtain a fresh Noto-reachable HTTPS URL from `get_file_detail`
+   immediately before execution and pass that value. A Kie URL, Paperclip local URL, attachment ID,
+   guessed upload field, guessed base64 form, or inaccessible path blocks before
+   execution.
 4. Map publication key `suijin:<actual-issue-id>:facebook-v1` only when the
    discovered schema advertises a compatible publication or idempotency field.
    Do not invent one.

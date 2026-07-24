@@ -1,6 +1,6 @@
 ---
 name: kie-image-generation
-description: Generate curated KieAPI images autonomously and persist them as Paperclip issue artifacts.
+description: Use when an issue needs an autonomous KieAPI image that must become a durable Paperclip issue artifact.
 ---
 
 # Kie image generation
@@ -27,10 +27,12 @@ posts a preflight report to the issue and then submits immediately.
 1. Use `paperclip.kie-image:get_generation` with `refresh: true` when status is
    not terminal. A callback or issue wakeup may arrive first; reread the
    generation and do not submit a duplicate request.
-2. For each result URL in a successful generation, download the bytes
+2. For a role that requires one image, require exactly one result URL. If Kie
+   returns multiple result URLs, stop with a visible issue blocker instead of
+   silently choosing or discarding an image. Download the accepted result bytes
    immediately. Kie result URLs are temporary and must not be the final
    deliverable.
-3. Upload each byte stream as an issue attachment with the authenticated
+3. Upload the byte stream as an issue attachment with the authenticated
    Paperclip API:
 
    `POST {PAPERCLIP_API_URL}/api/companies/{PAPERCLIP_COMPANY_ID}/issues/{issueId}/attachments`
@@ -38,23 +40,26 @@ posts a preflight report to the issue and then submits immediately.
    Use multipart form data and the bearer value from `PAPERCLIP_API_KEY`. Do
    not print the header or key. Then POST an `artifact` work product to
    `{PAPERCLIP_API_URL}/api/issues/{issueId}/work-products` with `projectId`
-   when known, `provider: "paperclip-attachment"`, a descriptive `title`,
-   `status: "active"`, and metadata containing the returned UUID
-   `attachmentId`, `contentType`, `byteSize`,
-   `contentPath: "/api/attachments/{attachmentId}/content"`, the same
-   `openPath`, and
-   `downloadPath: "/api/attachments/{attachmentId}/content?download=1"`.
+    when known, `provider: "paperclip"`, a descriptive `title`,
+    `status: "active"`, and metadata containing the returned UUID
+    `attachmentId`, `contentType`, `byteSize`,
+    `contentPath: "/api/attachments/{attachmentId}/content"`, the same
+    `openPath`, and
+    `downloadPath: "/api/attachments/{attachmentId}/content?download=1"`.
+   Add `artifactKind: "facebook-image"`, `kieGenerationId`, and the generation
+   metadata required by the consuming workflow. The Kie URL must not be the
+   artifact URL.
 4. Comment the durable Paperclip attachment/work-product links on the issue,
-   including the model, prompt purpose, and generation id. Report completion
-   only after the upload and artifact record succeed.
+   including the model, prompt purpose, and generation ID. Report completion
+   only after the attachment and artifact record succeed.
 
 ## REST fallback
 
-If the adapter does not expose plugin tools, use the authenticated plugin API
-with the injected values `PAPERCLIP_API_URL`, `PAPERCLIP_API_KEY`,
-`PAPERCLIP_COMPANY_ID`, `PAPERCLIP_AGENT_ID`, and `PAPERCLIP_RUN_ID`. Send
-`Authorization: Bearer $PAPERCLIP_API_KEY` and `X-Paperclip-Run-Id:
-$PAPERCLIP_RUN_ID` on every request:
+If the adapter does not expose Paperclip plugin tools, use the authenticated
+Paperclip plugin API with the injected values `PAPERCLIP_API_URL`,
+`PAPERCLIP_API_KEY`, `PAPERCLIP_COMPANY_ID`, `PAPERCLIP_AGENT_ID`, and
+`PAPERCLIP_RUN_ID`. Send `Authorization: Bearer $PAPERCLIP_API_KEY` and
+`X-Paperclip-Run-Id: $PAPERCLIP_RUN_ID` on every request:
 
 - `POST /api/plugins/paperclip.kie-image/api/generations` with `companyId`,
   `issueId`, `projectId`, `requestKey`, `prompt`, `purpose`, `model`, and

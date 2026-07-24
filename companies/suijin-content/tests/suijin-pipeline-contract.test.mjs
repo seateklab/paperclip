@@ -40,6 +40,7 @@ test("Suijin package declares the complete approval-gated Facebook pipeline", ()
   const writerAgent = read("agents/facebook-writer/AGENTS.md");
   const imageAgent = read("agents/image-agent/AGENTS.md");
   const publisherAgent = read("agents/facebook-publisher/AGENTS.md");
+  const notoImageSkill = read("skills/persist-facebook-image-to-noto/SKILL.md");
   const transportSkill = readRepository(
     "packages/skills-catalog/catalog/bundled/software-development/managed-tool-utf8-transport/SKILL.md",
   );
@@ -58,6 +59,7 @@ test("Suijin package declares the complete approval-gated Facebook pipeline", ()
     taskAgent,
     writerAgent,
     imageAgent,
+    notoImageSkill,
     publisherAgent,
     transportSkill,
     researchSkill,
@@ -103,7 +105,13 @@ test("Suijin package declares the complete approval-gated Facebook pipeline", ()
   assertOrdered(taskAgent, ["- paperclip", "- create-reviewed-topic-tasks"]);
   assertOrdered(researchAgent, ["- paperclip", "- research-facebook-topics", "- agent-browser"]);
   assertOrdered(writerAgent, ["- paperclip", "- write-facebook-post", "- verifying-published-text"]);
-  assertOrdered(imageAgent, ["- paperclip", "- kie-image-generation"]);
+  assertOrdered(imageAgent, [
+    "- paperclip",
+    "- kie-image-generation",
+    "- persist-facebook-image-to-noto",
+    "- managed-tool-utf8-transport",
+    "- noto",
+  ]);
   assertOrdered(publisherAgent, [
     "- paperclip",
     "- managed-tool-utf8-transport",
@@ -194,13 +202,34 @@ test("Suijin package declares the complete approval-gated Facebook pipeline", ()
   assert.match(imageSkill, /1:1/);
   assert.match(imageSkill, /1K/);
   assert.match(imageSkill, /png/i);
-  assertOrdered(imageSkill, ["attachment", "work product", "Publisher"]);
+  assertOrdered(notoImageSkill, ["Noto", "attachment", "work product", "assign Facebook Publisher"]);
   assert.match(imageSkill, /artifactKind["']?\s*:\s*["']facebook-image["']/);
+  assert.match(notoImageSkill, /notoFileId/);
+  assert.match(notoImageSkill, /sha256/i);
+  assert.match(notoImageSkill, /source URL|sourceUrl/i);
+  assert.match(notoImageSkill, /byte size|byteSize/i);
+  assert.doesNotMatch(notoImageSkill, new RegExp(["content", "Base64"].join("")));
+  assert.match(notoImageSkill, /\/v1\/file\/create/);
+  assert.match(notoImageSkill, /\/v1\/file\/detail/);
+  assert.match(notoImageSkill, /PNG signature/i);
+  assert.match(notoImageSkill, /HTTPS/i);
+  assert.match(notoImageSkill, /ambiguous.*block|incomplete.*block/i);
+  assert.doesNotMatch(notoImageSkill, /init[\s\S]*chunk[\s\S]*commit/i);
+  assert.match(notoImageSkill, /temporary Kie|temporary provider|temporary URL/i);
+  assert.match(notoImageSkill, /private|draft/i);
 
   for (const field of ["action", "targetPage", "documentKey", "imageWorkProduct", "publicationKey"]) {
     assert.ok(publisherSkill.includes(field), `missing final approval field: ${field}`);
   }
   assertOrdered(publisherSkill, ["## Final board gate", "require status `approved`", "managed skill `noto`"]);
+  assert.match(publisherSkill, /metadata\.notoFileId/);
+  assert.match(publisherSkill, /metadata\.notoFolderId/);
+  assert.match(publisherSkill, /metadata\.sha256/);
+  assert.match(publisherSkill, /get_file_detail/);
+  assert.doesNotMatch(publisherSkill, new RegExp(["get_file", "access"].join("_")));
+  assert.match(publisherSkill, /fresh Noto-reachable HTTPS URL/i);
+  assert.match(publisherSkill, /storagePath|accessUrl/);
+  assert.match(publisherSkill, /Kie URL/);
   assert.match(publisherSkill, /provider["']?\s*:\s*["']noto["']/);
   assert.match(publisherSkill, /external post id|externalId/i);
   assert.match(publisherSkill, /permalink|url/i);
